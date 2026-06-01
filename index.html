@@ -4,43 +4,50 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>KOOS Forecast Viewer</title>
+  <title>KOOS MOHID Forecast Viewer</title>
 
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/main.css" />
 </head>
 <body>
-  <main class="page">
-    <section class="hero">
-      <div class="badge">KOOS Forecast System</div>
-      <h1>KOOS Forecast Viewer</h1>
-      <p class="subtitle">
-        MOHID / WRF / SWAN 예측자료를 웹에서 시각화하기 위한 정형격자 기반 예측 뷰어입니다.
-      </p>
+  <div id="map"></div>
+  <canvas id="raster-canvas"></canvas>
 
-      <div class="cards">
-        <button class="model-card active" data-model="mohid">
-          <span class="model-name">MOHID</span>
-          <span class="model-desc">Ocean forecast viewer</span>
-          <span class="model-status">Ready</span>
-        </button>
+  <div id="top-panel">
+    <div class="title">KOOS Forecast Viewer</div>
+    <div class="subtitle">MOHID Surface Forecast</div>
+  </div>
 
-        <button class="model-card disabled" data-model="wrf" disabled>
-          <span class="model-name">WRF</span>
-          <span class="model-desc">Atmospheric forecast viewer</span>
-          <span class="model-status">Coming soon</span>
-        </button>
+  <div id="layer-panel">
+    <label class="control-label" for="var-select">Variable</label>
+    <select id="var-select">
+      <option value="temperature">Temperature</option>
+      <option value="salinity">Salinity</option>
+      <option value="ssh">Elevation</option>
+      <option value="current_speed">Current Speed</option>
+    </select>
 
-        <button class="model-card disabled" data-model="swan" disabled>
-          <span class="model-name">SWAN</span>
-          <span class="model-desc">Wave forecast viewer</span>
-          <span class="model-status">Coming soon</span>
-        </button>
-      </div>
+    <label class="control-label" for="opacity-slider">Opacity</label>
+    <input id="opacity-slider" type="range" min="0" max="1" step="0.05" value="0.82" />
 
-      <div id="status" class="status">Initializing...</div>
-    </section>
-  </main>
+    <label class="control-label">Base Map</label>
+    <div class="radio-row">
+      <label><input type="radio" name="basemap" value="light" checked /> Light</label>
+      <label><input type="radio" name="basemap" value="satellite" /> Satellite</label>
+    </div>
 
+    <div id="status-line">Loading...</div>
+  </div>
+
+  <div id="legend-box"></div>
+
+  <div id="time-panel">
+    <button id="play-btn">Play</button>
+    <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" />
+    <div id="time-label">--</div>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="src/app.js"></script>
 </body>
 </html>
