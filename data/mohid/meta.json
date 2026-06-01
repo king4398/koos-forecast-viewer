@@ -11,8 +11,8 @@
     "water_properties": "L2_WaterProperties_1_Surface_2026051212.hdf5"
   },
   "grid": {
-    "nx": 356,
-    "ny": 360,
+    "nx": 360,
+    "ny": 356,
     "lon_min": 117.52083587646484,
     "lon_max": 132.4791717529297,
     "lat_min": 28.6875,

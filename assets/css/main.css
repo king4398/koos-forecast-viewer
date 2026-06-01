@@ -210,3 +210,85 @@ select option {
     text-align: left;
   }
 }
+
+/* ===== UST21 logo overlay ===== */
+#ust21-logo-overlay {
+  position: fixed;
+  left: 16px;
+  bottom: 18px;
+  z-index: 60000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: auto;
+  max-width: 150px;
+}
+
+#ust21-logo-title {
+  margin: 0 0 8px 2px;
+  padding: 4px 10px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 8px;
+  letter-spacing: -0.2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#made-by-nyj {
+  display: none;
+  margin: 0 0 8px 2px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+#ust21-logo-img {
+  width: 120px;
+  max-width: 120px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+
+/* Hide default zoom/navigation buttons */
+.maplibregl-ctrl-top-left,
+.maplibregl-ctrl-bottom-left {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  #ust21-logo-overlay {
+    left: 18px;
+    bottom: 132px;
+    max-width: 106px;
+    opacity: 0.94;
+  }
+
+  #ust21-logo-title {
+    font-size: 10px;
+    padding: 2px 5px;
+    margin-bottom: 2px;
+    border-radius: 6px;
+  }
+
+  #made-by-nyj {
+    font-size: 10px;
+    padding: 2px 5px;
+    max-width: none;
+  }
+
+  #ust21-logo-img {
+    width: 68px;
+    max-width: 68px;
+  }
+}

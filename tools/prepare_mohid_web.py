@@ -108,6 +108,29 @@ def clean_var(a, mask=None, varname=""):
     return a.astype(np.float32)
 
 
+def to_web_grid(arr):
+    """
+    Convert MOHID Surface array to browser raster order.
+
+    MOHID Surface HDF5 fields are stored as (x, y)-like arrays.
+    Browser ImageData expects row-major (y, x).
+
+    So all grid/value arrays are transposed before writing .bin files.
+    """
+    return np.asarray(arr, dtype=np.float32).T.copy()
+
+
+def to_web_grid(arr):
+    """
+    Convert MOHID Surface array to web raster order.
+
+    MOHID Surface arrays are stored in a transposed orientation
+    relative to browser ImageData. We normalize all .bin files here,
+    so the JavaScript viewer can read them directly as row-major [y, x].
+    """
+    return np.asarray(arr, dtype=np.float32).T.copy()
+
+
 def write_bin(path, arr):
     arr = np.asarray(arr, dtype=np.float32)
     arr.tofile(path)
@@ -184,12 +207,20 @@ def main():
 
         bathy = clean_var(hydro["Grid/Bathymetry"][:], mask, "bathymetry")
 
-        ny, nx = mask.shape
+        # ny, nx are set after converting mask to web raster order.
 
-        write_bin(output_dir / "grid" / "lon.bin", lon)
-        write_bin(output_dir / "grid" / "lat.bin", lat)
-        write_bin(output_dir / "grid" / "mask.bin", mask)
-        write_bin(output_dir / "grid" / "bathymetry.bin", bathy)
+        # Convert all static grid fields to browser raster order.
+        lon_web = to_web_grid(lon)
+        lat_web = to_web_grid(lat)
+        mask_web = to_web_grid(mask)
+        bathy_web = to_web_grid(bathy)
+
+        ny, nx = mask_web.shape
+
+        write_bin(output_dir / "grid" / "lon.bin", lon_web)
+        write_bin(output_dir / "grid" / "lat.bin", lat_web)
+        write_bin(output_dir / "grid" / "mask.bin", mask_web)
+        write_bin(output_dir / "grid" / "bathymetry.bin", bathy_web)
 
         time_names = sorted(set(hydro["Time"].keys()) & set(wq["Time"].keys()))
 
@@ -228,12 +259,13 @@ def main():
 
             frame_file = f"frame_{idx:04d}.bin"
 
-            write_bin(output_dir / "temperature" / frame_file, temp)
-            write_bin(output_dir / "salinity" / frame_file, salt)
-            write_bin(output_dir / "ssh" / frame_file, ssh)
-            write_bin(output_dir / "current_u" / frame_file, u)
-            write_bin(output_dir / "current_v" / frame_file, v)
-            write_bin(output_dir / "current_speed" / frame_file, speed)
+            # Write all variables in browser raster order.
+            write_bin(output_dir / "temperature" / frame_file, to_web_grid(temp))
+            write_bin(output_dir / "salinity" / frame_file, to_web_grid(salt))
+            write_bin(output_dir / "ssh" / frame_file, to_web_grid(ssh))
+            write_bin(output_dir / "current_u" / frame_file, to_web_grid(u))
+            write_bin(output_dir / "current_v" / frame_file, to_web_grid(v))
+            write_bin(output_dir / "current_speed" / frame_file, to_web_grid(speed))
 
             update_actual_range(actual_ranges, "temperature", temp)
             update_actual_range(actual_ranges, "salinity", salt)
@@ -274,10 +306,10 @@ def main():
         "grid": {
             "nx": int(nx),
             "ny": int(ny),
-            "lon_min": float(np.nanmin(lon)),
-            "lon_max": float(np.nanmax(lon)),
-            "lat_min": float(np.nanmin(lat)),
-            "lat_max": float(np.nanmax(lat)),
+            "lon_min": float(np.nanmin(lon_web)),
+            "lon_max": float(np.nanmax(lon_web)),
+            "lat_min": float(np.nanmin(lat_web)),
+            "lat_max": float(np.nanmax(lat_web)),
             "lon_file": "grid/lon.bin",
             "lat_file": "grid/lat.bin",
             "mask_file": "grid/mask.bin",

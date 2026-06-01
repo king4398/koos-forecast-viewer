@@ -48,6 +48,34 @@
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="src/app.js"></script>
+  <script src="src/app.js?v=bin_orient_01"></script>
+
+  <div id="ust21-logo-overlay">
+    <div id="ust21-logo-title">UST21 수치예보팀</div>
+    <div id="made-by-nyj">made by nyj</div>
+    <img id="ust21-logo-img" src="assets/ust21.png?v=logo_update_01" alt="UST21 logo" width="120">
+  </div>
+
+  <script>
+  (function(){
+    function setupUst21Click(){
+      const title = document.getElementById("ust21-logo-title");
+      const made = document.getElementById("made-by-nyj");
+      if(!title || !made || title.dataset.clickReady === "1") return;
+      title.dataset.clickReady = "1";
+      title.addEventListener("click", function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        made.style.display = (made.style.display === "none" || made.style.display === "") ? "block" : "none";
+      });
+    }
+    if(document.readyState === "loading"){
+      document.addEventListener("DOMContentLoaded", setupUst21Click);
+    } else {
+      setupUst21Click();
+    }
+  })();
+  </script>
+
 </body>
 </html>
