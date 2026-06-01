@@ -1,0 +1,445 @@
+{
+  "format": "koos-mohid-regular-grid-v1",
+  "system": "KOOS",
+  "model": "MOHID",
+  "cycle": "2026051212",
+  "cycle_utc": "2026-05-12T12:00:00Z",
+  "forecast_start_utc": "2026-05-12T12:00:00Z",
+  "forecast_end_utc": "2026-05-13T12:00:00Z",
+  "source_files": {
+    "hydrodynamic": "L2_Hydrodynamic_1_Surface_2026051212.hdf5",
+    "water_properties": "L2_WaterProperties_1_Surface_2026051212.hdf5"
+  },
+  "grid": {
+    "nx": 356,
+    "ny": 360,
+    "lon_min": 117.52083587646484,
+    "lon_max": 132.4791717529297,
+    "lat_min": 28.6875,
+    "lat_max": 43.47916793823242,
+    "lon_file": "grid/lon.bin",
+    "lat_file": "grid/lat.bin",
+    "mask_file": "grid/mask.bin",
+    "bathymetry_file": "grid/bathymetry.bin"
+  },
+  "frames": [
+    {
+      "index": 0,
+      "name": "Time_00001",
+      "time_utc": "2026-05-12T12:00:00Z",
+      "label": "2026-05-12 12:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0000.bin",
+        "salinity": "salinity/frame_0000.bin",
+        "ssh": "ssh/frame_0000.bin",
+        "current_u": "current_u/frame_0000.bin",
+        "current_v": "current_v/frame_0000.bin",
+        "current_speed": "current_speed/frame_0000.bin"
+      }
+    },
+    {
+      "index": 1,
+      "name": "Time_00002",
+      "time_utc": "2026-05-12T13:00:00Z",
+      "label": "2026-05-12 13:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0001.bin",
+        "salinity": "salinity/frame_0001.bin",
+        "ssh": "ssh/frame_0001.bin",
+        "current_u": "current_u/frame_0001.bin",
+        "current_v": "current_v/frame_0001.bin",
+        "current_speed": "current_speed/frame_0001.bin"
+      }
+    },
+    {
+      "index": 2,
+      "name": "Time_00003",
+      "time_utc": "2026-05-12T14:00:00Z",
+      "label": "2026-05-12 14:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0002.bin",
+        "salinity": "salinity/frame_0002.bin",
+        "ssh": "ssh/frame_0002.bin",
+        "current_u": "current_u/frame_0002.bin",
+        "current_v": "current_v/frame_0002.bin",
+        "current_speed": "current_speed/frame_0002.bin"
+      }
+    },
+    {
+      "index": 3,
+      "name": "Time_00004",
+      "time_utc": "2026-05-12T15:00:00Z",
+      "label": "2026-05-12 15:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0003.bin",
+        "salinity": "salinity/frame_0003.bin",
+        "ssh": "ssh/frame_0003.bin",
+        "current_u": "current_u/frame_0003.bin",
+        "current_v": "current_v/frame_0003.bin",
+        "current_speed": "current_speed/frame_0003.bin"
+      }
+    },
+    {
+      "index": 4,
+      "name": "Time_00005",
+      "time_utc": "2026-05-12T16:00:00Z",
+      "label": "2026-05-12 16:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0004.bin",
+        "salinity": "salinity/frame_0004.bin",
+        "ssh": "ssh/frame_0004.bin",
+        "current_u": "current_u/frame_0004.bin",
+        "current_v": "current_v/frame_0004.bin",
+        "current_speed": "current_speed/frame_0004.bin"
+      }
+    },
+    {
+      "index": 5,
+      "name": "Time_00006",
+      "time_utc": "2026-05-12T17:00:00Z",
+      "label": "2026-05-12 17:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0005.bin",
+        "salinity": "salinity/frame_0005.bin",
+        "ssh": "ssh/frame_0005.bin",
+        "current_u": "current_u/frame_0005.bin",
+        "current_v": "current_v/frame_0005.bin",
+        "current_speed": "current_speed/frame_0005.bin"
+      }
+    },
+    {
+      "index": 6,
+      "name": "Time_00007",
+      "time_utc": "2026-05-12T18:00:00Z",
+      "label": "2026-05-12 18:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0006.bin",
+        "salinity": "salinity/frame_0006.bin",
+        "ssh": "ssh/frame_0006.bin",
+        "current_u": "current_u/frame_0006.bin",
+        "current_v": "current_v/frame_0006.bin",
+        "current_speed": "current_speed/frame_0006.bin"
+      }
+    },
+    {
+      "index": 7,
+      "name": "Time_00008",
+      "time_utc": "2026-05-12T19:00:00Z",
+      "label": "2026-05-12 19:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0007.bin",
+        "salinity": "salinity/frame_0007.bin",
+        "ssh": "ssh/frame_0007.bin",
+        "current_u": "current_u/frame_0007.bin",
+        "current_v": "current_v/frame_0007.bin",
+        "current_speed": "current_speed/frame_0007.bin"
+      }
+    },
+    {
+      "index": 8,
+      "name": "Time_00009",
+      "time_utc": "2026-05-12T20:00:00Z",
+      "label": "2026-05-12 20:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0008.bin",
+        "salinity": "salinity/frame_0008.bin",
+        "ssh": "ssh/frame_0008.bin",
+        "current_u": "current_u/frame_0008.bin",
+        "current_v": "current_v/frame_0008.bin",
+        "current_speed": "current_speed/frame_0008.bin"
+      }
+    },
+    {
+      "index": 9,
+      "name": "Time_00010",
+      "time_utc": "2026-05-12T21:00:00Z",
+      "label": "2026-05-12 21:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0009.bin",
+        "salinity": "salinity/frame_0009.bin",
+        "ssh": "ssh/frame_0009.bin",
+        "current_u": "current_u/frame_0009.bin",
+        "current_v": "current_v/frame_0009.bin",
+        "current_speed": "current_speed/frame_0009.bin"
+      }
+    },
+    {
+      "index": 10,
+      "name": "Time_00011",
+      "time_utc": "2026-05-12T22:00:00Z",
+      "label": "2026-05-12 22:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0010.bin",
+        "salinity": "salinity/frame_0010.bin",
+        "ssh": "ssh/frame_0010.bin",
+        "current_u": "current_u/frame_0010.bin",
+        "current_v": "current_v/frame_0010.bin",
+        "current_speed": "current_speed/frame_0010.bin"
+      }
+    },
+    {
+      "index": 11,
+      "name": "Time_00012",
+      "time_utc": "2026-05-12T23:00:00Z",
+      "label": "2026-05-12 23:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0011.bin",
+        "salinity": "salinity/frame_0011.bin",
+        "ssh": "ssh/frame_0011.bin",
+        "current_u": "current_u/frame_0011.bin",
+        "current_v": "current_v/frame_0011.bin",
+        "current_speed": "current_speed/frame_0011.bin"
+      }
+    },
+    {
+      "index": 12,
+      "name": "Time_00013",
+      "time_utc": "2026-05-13T00:00:00Z",
+      "label": "2026-05-13 00:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0012.bin",
+        "salinity": "salinity/frame_0012.bin",
+        "ssh": "ssh/frame_0012.bin",
+        "current_u": "current_u/frame_0012.bin",
+        "current_v": "current_v/frame_0012.bin",
+        "current_speed": "current_speed/frame_0012.bin"
+      }
+    },
+    {
+      "index": 13,
+      "name": "Time_00014",
+      "time_utc": "2026-05-13T01:00:00Z",
+      "label": "2026-05-13 01:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0013.bin",
+        "salinity": "salinity/frame_0013.bin",
+        "ssh": "ssh/frame_0013.bin",
+        "current_u": "current_u/frame_0013.bin",
+        "current_v": "current_v/frame_0013.bin",
+        "current_speed": "current_speed/frame_0013.bin"
+      }
+    },
+    {
+      "index": 14,
+      "name": "Time_00015",
+      "time_utc": "2026-05-13T02:00:00Z",
+      "label": "2026-05-13 02:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0014.bin",
+        "salinity": "salinity/frame_0014.bin",
+        "ssh": "ssh/frame_0014.bin",
+        "current_u": "current_u/frame_0014.bin",
+        "current_v": "current_v/frame_0014.bin",
+        "current_speed": "current_speed/frame_0014.bin"
+      }
+    },
+    {
+      "index": 15,
+      "name": "Time_00016",
+      "time_utc": "2026-05-13T03:00:00Z",
+      "label": "2026-05-13 03:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0015.bin",
+        "salinity": "salinity/frame_0015.bin",
+        "ssh": "ssh/frame_0015.bin",
+        "current_u": "current_u/frame_0015.bin",
+        "current_v": "current_v/frame_0015.bin",
+        "current_speed": "current_speed/frame_0015.bin"
+      }
+    },
+    {
+      "index": 16,
+      "name": "Time_00017",
+      "time_utc": "2026-05-13T04:00:00Z",
+      "label": "2026-05-13 04:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0016.bin",
+        "salinity": "salinity/frame_0016.bin",
+        "ssh": "ssh/frame_0016.bin",
+        "current_u": "current_u/frame_0016.bin",
+        "current_v": "current_v/frame_0016.bin",
+        "current_speed": "current_speed/frame_0016.bin"
+      }
+    },
+    {
+      "index": 17,
+      "name": "Time_00018",
+      "time_utc": "2026-05-13T05:00:00Z",
+      "label": "2026-05-13 05:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0017.bin",
+        "salinity": "salinity/frame_0017.bin",
+        "ssh": "ssh/frame_0017.bin",
+        "current_u": "current_u/frame_0017.bin",
+        "current_v": "current_v/frame_0017.bin",
+        "current_speed": "current_speed/frame_0017.bin"
+      }
+    },
+    {
+      "index": 18,
+      "name": "Time_00019",
+      "time_utc": "2026-05-13T06:00:00Z",
+      "label": "2026-05-13 06:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0018.bin",
+        "salinity": "salinity/frame_0018.bin",
+        "ssh": "ssh/frame_0018.bin",
+        "current_u": "current_u/frame_0018.bin",
+        "current_v": "current_v/frame_0018.bin",
+        "current_speed": "current_speed/frame_0018.bin"
+      }
+    },
+    {
+      "index": 19,
+      "name": "Time_00020",
+      "time_utc": "2026-05-13T07:00:00Z",
+      "label": "2026-05-13 07:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0019.bin",
+        "salinity": "salinity/frame_0019.bin",
+        "ssh": "ssh/frame_0019.bin",
+        "current_u": "current_u/frame_0019.bin",
+        "current_v": "current_v/frame_0019.bin",
+        "current_speed": "current_speed/frame_0019.bin"
+      }
+    },
+    {
+      "index": 20,
+      "name": "Time_00021",
+      "time_utc": "2026-05-13T08:00:00Z",
+      "label": "2026-05-13 08:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0020.bin",
+        "salinity": "salinity/frame_0020.bin",
+        "ssh": "ssh/frame_0020.bin",
+        "current_u": "current_u/frame_0020.bin",
+        "current_v": "current_v/frame_0020.bin",
+        "current_speed": "current_speed/frame_0020.bin"
+      }
+    },
+    {
+      "index": 21,
+      "name": "Time_00022",
+      "time_utc": "2026-05-13T09:00:00Z",
+      "label": "2026-05-13 09:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0021.bin",
+        "salinity": "salinity/frame_0021.bin",
+        "ssh": "ssh/frame_0021.bin",
+        "current_u": "current_u/frame_0021.bin",
+        "current_v": "current_v/frame_0021.bin",
+        "current_speed": "current_speed/frame_0021.bin"
+      }
+    },
+    {
+      "index": 22,
+      "name": "Time_00023",
+      "time_utc": "2026-05-13T10:00:00Z",
+      "label": "2026-05-13 10:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0022.bin",
+        "salinity": "salinity/frame_0022.bin",
+        "ssh": "ssh/frame_0022.bin",
+        "current_u": "current_u/frame_0022.bin",
+        "current_v": "current_v/frame_0022.bin",
+        "current_speed": "current_speed/frame_0022.bin"
+      }
+    },
+    {
+      "index": 23,
+      "name": "Time_00024",
+      "time_utc": "2026-05-13T11:00:00Z",
+      "label": "2026-05-13 11:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0023.bin",
+        "salinity": "salinity/frame_0023.bin",
+        "ssh": "ssh/frame_0023.bin",
+        "current_u": "current_u/frame_0023.bin",
+        "current_v": "current_v/frame_0023.bin",
+        "current_speed": "current_speed/frame_0023.bin"
+      }
+    },
+    {
+      "index": 24,
+      "name": "Time_00025",
+      "time_utc": "2026-05-13T12:00:00Z",
+      "label": "2026-05-13 12:00:00 UTC",
+      "files": {
+        "temperature": "temperature/frame_0024.bin",
+        "salinity": "salinity/frame_0024.bin",
+        "ssh": "ssh/frame_0024.bin",
+        "current_u": "current_u/frame_0024.bin",
+        "current_v": "current_v/frame_0024.bin",
+        "current_speed": "current_speed/frame_0024.bin"
+      }
+    }
+  ],
+  "variables": {
+    "temperature": {
+      "label": "Temperature",
+      "label_ko": "수온",
+      "unit": "degC",
+      "vmin": 0.0,
+      "vmax": 32.0,
+      "cmap": "jet",
+      "actual_range": {
+        "min": 6.321641445159912,
+        "max": 25.02471351623535
+      }
+    },
+    "salinity": {
+      "label": "Salinity",
+      "label_ko": "염분",
+      "unit": "psu",
+      "vmin": 25.0,
+      "vmax": 35.0,
+      "cmap": "ylgnbu",
+      "actual_range": {
+        "min": 0.10007455199956894,
+        "max": 34.76494598388672
+      }
+    },
+    "ssh": {
+      "label": "Elevation",
+      "label_ko": "수위",
+      "unit": "m",
+      "vmin": -1.0,
+      "vmax": 1.0,
+      "cmap": "bwr",
+      "actual_range": {
+        "min": -2.4178802967071533,
+        "max": 6.6780314445495605
+      }
+    },
+    "current_speed": {
+      "label": "Current Speed",
+      "label_ko": "유속",
+      "unit": "m/s",
+      "vmin": 0.0,
+      "vmax": 1.0,
+      "cmap": "jet",
+      "actual_range": {
+        "min": 1.7735948858899064e-05,
+        "max": 2.2264552116394043
+      }
+    },
+    "current_u": {
+      "label": "Current U",
+      "label_ko": "동서 유속",
+      "unit": "m/s",
+      "actual_range": {
+        "min": -2.1082875728607178,
+        "max": 2.2264552116394043
+      }
+    },
+    "current_v": {
+      "label": "Current V",
+      "label_ko": "남북 유속",
+      "unit": "m/s",
+      "actual_range": {
+        "min": -1.6700230836868286,
+        "max": 1.7949974536895752
+      }
+    }
+  }
+}

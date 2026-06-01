@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>KOOS Forecast Viewer</title>
+
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="badge">KOOS Forecast System</div>
+      <h1>KOOS Forecast Viewer</h1>
+      <p class="subtitle">
+        MOHID / WRF / SWAN 예측자료를 웹에서 시각화하기 위한 정형격자 기반 예측 뷰어입니다.
+      </p>
+
+      <div class="cards">
+        <button class="model-card active" data-model="mohid">
+          <span class="model-name">MOHID</span>
+          <span class="model-desc">Ocean forecast viewer</span>
+          <span class="model-status">Ready</span>
+        </button>
+
+        <button class="model-card disabled" data-model="wrf" disabled>
+          <span class="model-name">WRF</span>
+          <span class="model-desc">Atmospheric forecast viewer</span>
+          <span class="model-status">Coming soon</span>
+        </button>
+
+        <button class="model-card disabled" data-model="swan" disabled>
+          <span class="model-name">SWAN</span>
+          <span class="model-desc">Wave forecast viewer</span>
+          <span class="model-status">Coming soon</span>
+        </button>
+      </div>
+
+      <div id="status" class="status">Initializing...</div>
+    </section>
+  </main>
+
+  <script src="src/app.js"></script>
+</body>
+</html>

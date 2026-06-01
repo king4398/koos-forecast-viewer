@@ -1,0 +1,19 @@
+{
+  "system": "KOOS",
+  "latest_model": "mohid",
+  "latest_cycle_utc": "2026-05-12T12:00:00Z",
+  "models": {
+    "mohid": {
+      "enabled": true,
+      "meta": "data/mohid/meta.json"
+    },
+    "wrf": {
+      "enabled": false,
+      "meta": "data/wrf/meta.json"
+    },
+    "swan": {
+      "enabled": false,
+      "meta": "data/swan/meta.json"
+    }
+  }
+}
