@@ -13,7 +13,6 @@ import numpy as np
 HYDRO_PATTERN = "L2_Hydrodynamic_1_Surface_*.hdf5"
 WQ_PATTERN = "L2_WaterProperties_1_Surface_*.hdf5"
 
-# SCHISM viewer 기준 컬러바 범위
 DISPLAY_RANGES = {
     "temperature": {"vmin": 0.0, "vmax": 32.0, "cmap": "jet"},
     "salinity": {"vmin": 25.0, "vmax": 35.0, "cmap": "ylgnbu"},
@@ -108,32 +107,8 @@ def clean_var(a, mask=None, varname=""):
     return a.astype(np.float32)
 
 
-def to_web_grid(arr):
-    """
-    Convert MOHID Surface array to browser raster order.
-
-    MOHID Surface HDF5 fields are stored as (x, y)-like arrays.
-    Browser ImageData expects row-major (y, x).
-
-    So all grid/value arrays are transposed before writing .bin files.
-    """
-    return np.asarray(arr, dtype=np.float32).T.copy()
-
-
-def to_web_grid(arr):
-    """
-    Convert MOHID Surface array to web raster order.
-
-    MOHID Surface arrays are stored in a transposed orientation
-    relative to browser ImageData. We normalize all .bin files here,
-    so the JavaScript viewer can read them directly as row-major [y, x].
-    """
-    return np.asarray(arr, dtype=np.float32).T.copy()
-
-
 def write_bin(path, arr):
-    arr = np.asarray(arr, dtype=np.float32)
-    arr.tofile(path)
+    np.asarray(arr, dtype=np.float32).tofile(path)
 
 
 def finite_minmax(arr):
@@ -196,31 +171,25 @@ def main():
     frames = []
 
     with h5py.File(hydro_path, "r") as hydro, h5py.File(wq_path, "r") as wq:
-        lon_corner = np.asarray(hydro["Grid/Longitude"][:], dtype=np.float64)
-        lat_corner = np.asarray(hydro["Grid/Latitude"][:], dtype=np.float64)
+        lon_corner = np.asarray(hydro["Grid/Longitude"][:], dtype=np.float32)
+        lat_corner = np.asarray(hydro["Grid/Latitude"][:], dtype=np.float32)
 
-        lon = center_from_corners(lon_corner).astype(np.float32)
-        lat = center_from_corners(lat_corner).astype(np.float32)
+        lon_center = center_from_corners(lon_corner).astype(np.float32)
+        lat_center = center_from_corners(lat_corner).astype(np.float32)
 
         mask = to_2d(hydro["Grid/WaterPoints3D"][:]).astype(np.int32)
         mask = (mask > 0).astype(np.float32)
 
         bathy = clean_var(hydro["Grid/Bathymetry"][:], mask, "bathymetry")
 
-        # ny, nx are set after converting mask to web raster order.
+        ny, nx = mask.shape
 
-        # Convert all static grid fields to browser raster order.
-        lon_web = to_web_grid(lon)
-        lat_web = to_web_grid(lat)
-        mask_web = to_web_grid(mask)
-        bathy_web = to_web_grid(bathy)
-
-        ny, nx = mask_web.shape
-
-        write_bin(output_dir / "grid" / "lon.bin", lon_web)
-        write_bin(output_dir / "grid" / "lat.bin", lat_web)
-        write_bin(output_dir / "grid" / "mask.bin", mask_web)
-        write_bin(output_dir / "grid" / "bathymetry.bin", bathy_web)
+        write_bin(output_dir / "grid" / "lon.bin", lon_center)
+        write_bin(output_dir / "grid" / "lat.bin", lat_center)
+        write_bin(output_dir / "grid" / "lon_corner.bin", lon_corner)
+        write_bin(output_dir / "grid" / "lat_corner.bin", lat_corner)
+        write_bin(output_dir / "grid" / "mask.bin", mask)
+        write_bin(output_dir / "grid" / "bathymetry.bin", bathy)
 
         time_names = sorted(set(hydro["Time"].keys()) & set(wq["Time"].keys()))
 
@@ -228,44 +197,23 @@ def main():
             num = time_name.split("_")[-1]
             time_utc = read_time_iso(hydro, time_name)
 
-            u = clean_var(
-                to_2d(hydro[f"Results/velocity U/velocity U_{num}"][:]),
-                mask,
-                "current_u",
-            )
-            v = clean_var(
-                to_2d(hydro[f"Results/velocity V/velocity V_{num}"][:]),
-                mask,
-                "current_v",
-            )
-            ssh = clean_var(
-                to_2d(hydro[f"Results/water level/water level_{num}"][:]),
-                mask,
-                "ssh",
-            )
-            temp = clean_var(
-                to_2d(wq[f"Results/temperature/temperature_{num}"][:]),
-                mask,
-                "temperature",
-            )
-            salt = clean_var(
-                to_2d(wq[f"Results/salinity/salinity_{num}"][:]),
-                mask,
-                "salinity",
-            )
+            u = clean_var(to_2d(hydro[f"Results/velocity U/velocity U_{num}"][:]), mask, "current_u")
+            v = clean_var(to_2d(hydro[f"Results/velocity V/velocity V_{num}"][:]), mask, "current_v")
+            ssh = clean_var(to_2d(hydro[f"Results/water level/water level_{num}"][:]), mask, "ssh")
+            temp = clean_var(to_2d(wq[f"Results/temperature/temperature_{num}"][:]), mask, "temperature")
+            salt = clean_var(to_2d(wq[f"Results/salinity/salinity_{num}"][:]), mask, "salinity")
 
             speed = np.sqrt(u * u + v * v).astype(np.float32)
             speed[~np.isfinite(speed)] = np.nan
 
             frame_file = f"frame_{idx:04d}.bin"
 
-            # Write all variables in browser raster order.
-            write_bin(output_dir / "temperature" / frame_file, to_web_grid(temp))
-            write_bin(output_dir / "salinity" / frame_file, to_web_grid(salt))
-            write_bin(output_dir / "ssh" / frame_file, to_web_grid(ssh))
-            write_bin(output_dir / "current_u" / frame_file, to_web_grid(u))
-            write_bin(output_dir / "current_v" / frame_file, to_web_grid(v))
-            write_bin(output_dir / "current_speed" / frame_file, to_web_grid(speed))
+            write_bin(output_dir / "temperature" / frame_file, temp)
+            write_bin(output_dir / "salinity" / frame_file, salt)
+            write_bin(output_dir / "ssh" / frame_file, ssh)
+            write_bin(output_dir / "current_u" / frame_file, u)
+            write_bin(output_dir / "current_v" / frame_file, v)
+            write_bin(output_dir / "current_speed" / frame_file, speed)
 
             update_actual_range(actual_ranges, "temperature", temp)
             update_actual_range(actual_ranges, "salinity", salt)
@@ -292,7 +240,7 @@ def main():
             print(f"[WRITE] {idx:04d} {time_utc}")
 
     meta = {
-        "format": "koos-mohid-regular-grid-v1",
+        "format": "koos-mohid-curvilinear-grid-v1",
         "system": "KOOS",
         "model": "MOHID",
         "cycle": cycle,
@@ -306,12 +254,16 @@ def main():
         "grid": {
             "nx": int(nx),
             "ny": int(ny),
-            "lon_min": float(np.nanmin(lon_web)),
-            "lon_max": float(np.nanmax(lon_web)),
-            "lat_min": float(np.nanmin(lat_web)),
-            "lat_max": float(np.nanmax(lat_web)),
+            "corner_nx": int(nx + 1),
+            "corner_ny": int(ny + 1),
+            "lon_min": float(np.nanmin(lon_corner)),
+            "lon_max": float(np.nanmax(lon_corner)),
+            "lat_min": float(np.nanmin(lat_corner)),
+            "lat_max": float(np.nanmax(lat_corner)),
             "lon_file": "grid/lon.bin",
             "lat_file": "grid/lat.bin",
+            "lon_corner_file": "grid/lon_corner.bin",
+            "lat_corner_file": "grid/lat_corner.bin",
             "mask_file": "grid/mask.bin",
             "bathymetry_file": "grid/bathymetry.bin"
         },
@@ -368,36 +320,21 @@ def main():
         }
     }
 
-    (output_dir / "meta.json").write_text(
-        json.dumps(meta, indent=2, ensure_ascii=False),
-        encoding="utf-8"
-    )
+    (output_dir / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
 
     latest = {
         "system": "KOOS",
         "latest_model": "mohid",
         "latest_cycle_utc": meta["cycle_utc"],
         "models": {
-            "mohid": {
-                "enabled": True,
-                "meta": "data/mohid/meta.json"
-            },
-            "wrf": {
-                "enabled": False,
-                "meta": "data/wrf/meta.json"
-            },
-            "swan": {
-                "enabled": False,
-                "meta": "data/swan/meta.json"
-            }
+            "mohid": {"enabled": True, "meta": "data/mohid/meta.json"},
+            "wrf": {"enabled": False, "meta": "data/wrf/meta.json"},
+            "swan": {"enabled": False, "meta": "data/swan/meta.json"}
         }
     }
 
     latest_path = output_dir.parent / "latest.json"
-    latest_path.write_text(
-        json.dumps(latest, indent=2, ensure_ascii=False),
-        encoding="utf-8"
-    )
+    latest_path.write_text(json.dumps(latest, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print(f"[DONE] {output_dir / 'meta.json'}")
     print(f"[DONE] {latest_path}")

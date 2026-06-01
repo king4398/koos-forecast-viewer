@@ -20,14 +20,9 @@ let currentVar = "temperature";
 let currentFrame = 0;
 let timer = null;
 let cache = new Map();
-let imageCache = new Map();
 
 function setStatus(msg) {
   if (els.statusLine) els.statusLine.textContent = msg;
-}
-
-function pad4(i) {
-  return String(i).padStart(4, "0");
 }
 
 function frameCount() {
@@ -52,23 +47,12 @@ async function fetchFloat32(url, expectedLen = null) {
   return arr;
 }
 
-function mercatorProject(lon, lat) {
-  const x = (lon + 180.0) / 360.0;
-  const sin = Math.sin((lat * Math.PI) / 180.0);
-  const y = 0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI);
-  return { x, y };
-}
-
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-
-  els.canvas.width = Math.round(w * dpr);
-  els.canvas.height = Math.round(h * dpr);
-  els.canvas.style.width = w + "px";
-  els.canvas.style.height = h + "px";
-
+  els.canvas.width = Math.round(window.innerWidth * dpr);
+  els.canvas.height = Math.round(window.innerHeight * dpr);
+  els.canvas.style.width = window.innerWidth + "px";
+  els.canvas.style.height = window.innerHeight + "px";
   drawCurrentFrame();
 }
 
@@ -83,11 +67,7 @@ function mix(a, b, t) {
 }
 
 function mixColor(c0, c1, t) {
-  return [
-    mix(c0[0], c1[0], t),
-    mix(c0[1], c1[1], t),
-    mix(c0[2], c1[2], t)
-  ];
+  return [mix(c0[0], c1[0], t), mix(c0[1], c1[1], t), mix(c0[2], c1[2], t)];
 }
 
 function smoothJet(t) {
@@ -135,19 +115,15 @@ function blueWhiteRed(t) {
 function colorForValue(v, variable) {
   const vm = meta.variables[variable];
   const t = valueToT(v, vm.vmin, vm.vmax);
-  if (!Number.isFinite(t)) return [0, 0, 0, 0];
+  if (!Number.isFinite(t)) return null;
 
   let c;
   if (vm.cmap === "ylgnbu") c = ylgnbu(t);
   else if (vm.cmap === "bwr") c = blueWhiteRed(t);
   else c = smoothJet(t);
 
-  return [
-    Math.round(c[0] * 255),
-    Math.round(c[1] * 255),
-    Math.round(c[2] * 255),
-    Math.round(255 * Number(els.opacitySlider.value || 0.82))
-  ];
+  const alpha = Number(els.opacitySlider.value || 0.82);
+  return `rgba(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)},${alpha})`;
 }
 
 function frameUrl(variable, frameIndex) {
@@ -158,25 +134,25 @@ function frameUrl(variable, frameIndex) {
 
 async function loadGrid() {
   const n = meta.grid.nx * meta.grid.ny;
+  const nc = meta.grid.corner_nx * meta.grid.corner_ny;
+
   const lon = await fetchFloat32(DATA_ROOT + meta.grid.lon_file, n);
   const lat = await fetchFloat32(DATA_ROOT + meta.grid.lat_file, n);
   const mask = await fetchFloat32(DATA_ROOT + meta.grid.mask_file, n);
-
-  const merc = new Float32Array(n * 2);
-  for (let i = 0; i < n; i++) {
-    const p = mercatorProject(lon[i], lat[i]);
-    merc[i * 2] = p.x;
-    merc[i * 2 + 1] = p.y;
-  }
+  const lonCorner = await fetchFloat32(DATA_ROOT + meta.grid.lon_corner_file, nc);
+  const latCorner = await fetchFloat32(DATA_ROOT + meta.grid.lat_corner_file, nc);
 
   grid = {
     nx: meta.grid.nx,
     ny: meta.grid.ny,
+    cornerNx: meta.grid.corner_nx,
+    cornerNy: meta.grid.corner_ny,
     n,
     lon,
     lat,
     mask,
-    merc
+    lonCorner,
+    latCorner
   };
 }
 
@@ -190,67 +166,64 @@ async function loadFrame(variable, frameIndex) {
   return arr;
 }
 
-function makeRasterImage(variable, values) {
-  const key = `${variable}:${currentFrame}:op${els.opacitySlider.value}`;
-  if (imageCache.has(key)) return imageCache.get(key);
-
-  const nx = grid.nx;
-  const ny = grid.ny;
-  const image = new ImageData(nx, ny);
-  const data = image.data;
-
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const src = j * nx + i;
-      const dst = src * 4;
-      const rgba = colorForValue(values[src], variable);
-
-      data[dst] = rgba[0];
-      data[dst + 1] = rgba[1];
-      data[dst + 2] = rgba[2];
-      data[dst + 3] = grid.mask[src] > 0 ? rgba[3] : 0;
-    }
-  }
-
-  imageCache.set(key, image);
-  return image;
-}
-
-function drawImageProjected(image) {
+function drawCurvilinearCells(values) {
   const ctx = els.canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
-
-  if (!grid || !map) return;
+  ctx.lineWidth = 0;
 
   const nx = grid.nx;
   const ny = grid.ny;
+  const cnx = grid.cornerNx;
 
-  const off = document.createElement("canvas");
-  off.width = nx;
-  off.height = ny;
-  const offCtx = off.getContext("2d");
-  offCtx.putImageData(image, 0, 0);
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const idx = j * nx + i;
 
-  ctx.globalCompositeOperation = "source-over";
-  ctx.imageSmoothingEnabled = true;
+      if (grid.mask[idx] <= 0) continue;
 
-  const bounds = [
-    [meta.grid.lon_min, meta.grid.lat_min],
-    [meta.grid.lon_max, meta.grid.lat_max]
-  ];
+      const val = values[idx];
+      if (!Number.isFinite(val)) continue;
 
-  const sw = map.project([bounds[0][0], bounds[0][1]]);
-  const ne = map.project([bounds[1][0], bounds[1][1]]);
+      const fill = colorForValue(val, currentVar);
+      if (!fill) continue;
 
-  const x = sw.x * dpr;
-  const y = ne.y * dpr;
-  const w = (ne.x - sw.x) * dpr;
-  const h = (sw.y - ne.y) * dpr;
+      const c00 = j * cnx + i;
+      const c10 = j * cnx + (i + 1);
+      const c11 = (j + 1) * cnx + (i + 1);
+      const c01 = (j + 1) * cnx + i;
 
-  ctx.drawImage(off, x, y, w, h);
+      const lon00 = grid.lonCorner[c00], lat00 = grid.latCorner[c00];
+      const lon10 = grid.lonCorner[c10], lat10 = grid.latCorner[c10];
+      const lon11 = grid.lonCorner[c11], lat11 = grid.latCorner[c11];
+      const lon01 = grid.lonCorner[c01], lat01 = grid.latCorner[c01];
+
+      if (
+        !Number.isFinite(lon00) || !Number.isFinite(lat00) ||
+        !Number.isFinite(lon10) || !Number.isFinite(lat10) ||
+        !Number.isFinite(lon11) || !Number.isFinite(lat11) ||
+        !Number.isFinite(lon01) || !Number.isFinite(lat01)
+      ) {
+        continue;
+      }
+
+      const p00 = map.project([lon00, lat00]);
+      const p10 = map.project([lon10, lat10]);
+      const p11 = map.project([lon11, lat11]);
+      const p01 = map.project([lon01, lat01]);
+
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(p00.x * dpr, p00.y * dpr);
+      ctx.lineTo(p10.x * dpr, p10.y * dpr);
+      ctx.lineTo(p11.x * dpr, p11.y * dpr);
+      ctx.lineTo(p01.x * dpr, p01.y * dpr);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
 }
 
 async function drawCurrentFrame() {
@@ -258,14 +231,10 @@ async function drawCurrentFrame() {
 
   try {
     const values = await loadFrame(currentVar, currentFrame);
-    const img = makeRasterImage(currentVar, values);
-    drawImageProjected(img);
+    drawCurvilinearCells(values);
     updateTimeLabel();
     updateLegend();
-    setStatus(
-      `MOHID ${meta.cycle}\n` +
-      `${currentVar} frame ${currentFrame + 1}/${frameCount()}`
-    );
+    setStatus(`MOHID ${meta.cycle}\n${currentVar} frame ${currentFrame + 1}/${frameCount()}`);
   } catch (err) {
     console.error(err);
     setStatus("Draw failed:\n" + err.message);
@@ -306,11 +275,7 @@ function updateLegend() {
 
 function updateTimeLabel() {
   const f = meta.frames[currentFrame];
-  if (!f) {
-    els.timeLabel.textContent = "--";
-    return;
-  }
-  els.timeLabel.textContent = f.label || f.time_utc || "--";
+  els.timeLabel.textContent = f ? (f.label || f.time_utc || "--") : "--";
 }
 
 function setFrame(i) {
@@ -330,13 +295,11 @@ function stopPlay() {
 function startPlay() {
   stopPlay();
   els.playBtn.textContent = "Pause";
-
   timer = setInterval(() => {
     const n = frameCount();
     if (n <= 0) return;
-    const next = (currentFrame + 1) % n;
-    setFrame(next);
-  }, 700);
+    setFrame((currentFrame + 1) % n);
+  }, 900);
 }
 
 function togglePlay() {
@@ -346,7 +309,6 @@ function togglePlay() {
 
 function setBasemap(name) {
   if (!map) return;
-
   if (name === "satellite") {
     map.setLayoutProperty("carto-light", "visibility", "none");
     map.setLayoutProperty("esri-satellite", "visibility", "visible");
@@ -386,52 +348,25 @@ function initMap() {
         }
       },
       layers: [
-        {
-          id: "carto-light",
-          type: "raster",
-          source: "carto-light",
-          layout: { visibility: "visible" }
-        },
-        {
-          id: "esri-satellite",
-          type: "raster",
-          source: "esri-satellite",
-          layout: { visibility: "none" }
-        }
+        { id: "carto-light", type: "raster", source: "carto-light", layout: { visibility: "none" } },
+        { id: "esri-satellite", type: "raster", source: "esri-satellite", layout: { visibility: "visible" } }
       ]
     }
   });
 
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-left");
-
-  map.on("load", () => {
-    drawCurrentFrame();
-  });
-
-  map.on("move", () => {
-    drawCurrentFrame();
-  });
-
-  map.on("zoom", () => {
-    drawCurrentFrame();
-  });
-
-  map.on("resize", () => {
-    resizeCanvas();
-  });
+  map.on("load", drawCurrentFrame);
+  map.on("moveend", drawCurrentFrame);
+  map.on("zoomend", drawCurrentFrame);
+  map.on("resize", resizeCanvas);
 }
 
 function bindEvents() {
   els.varSelect.addEventListener("change", () => {
     currentVar = els.varSelect.value;
-    imageCache.clear();
     drawCurrentFrame();
   });
 
-  els.opacitySlider.addEventListener("input", () => {
-    imageCache.clear();
-    drawCurrentFrame();
-  });
+  els.opacitySlider.addEventListener("input", drawCurrentFrame);
 
   els.frameSlider.addEventListener("input", () => {
     stopPlay();
@@ -465,10 +400,7 @@ async function init() {
     updateLegend();
     updateTimeLabel();
 
-    setStatus(
-      `MOHID ${meta.cycle}\n` +
-      `${meta.forecast_start_utc} ~ ${meta.forecast_end_utc}`
-    );
+    setStatus(`MOHID ${meta.cycle}\n${meta.forecast_start_utc} ~ ${meta.forecast_end_utc}`);
   } catch (err) {
     console.error(err);
     setStatus("Initialization failed:\n" + err.message);

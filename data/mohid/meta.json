@@ -1,5 +1,5 @@
 {
-  "format": "koos-mohid-regular-grid-v1",
+  "format": "koos-mohid-curvilinear-grid-v1",
   "system": "KOOS",
   "model": "MOHID",
   "cycle": "2026051212",
@@ -11,14 +11,18 @@
     "water_properties": "L2_WaterProperties_1_Surface_2026051212.hdf5"
   },
   "grid": {
-    "nx": 360,
-    "ny": 356,
-    "lon_min": 117.52083587646484,
-    "lon_max": 132.4791717529297,
-    "lat_min": 28.6875,
-    "lat_max": 43.47916793823242,
+    "nx": 356,
+    "ny": 360,
+    "corner_nx": 357,
+    "corner_ny": 361,
+    "lon_min": 117.5,
+    "lon_max": 132.5,
+    "lat_min": 28.66666603088379,
+    "lat_max": 43.5,
     "lon_file": "grid/lon.bin",
     "lat_file": "grid/lat.bin",
+    "lon_corner_file": "grid/lon_corner.bin",
+    "lat_corner_file": "grid/lat_corner.bin",
     "mask_file": "grid/mask.bin",
     "bathymetry_file": "grid/bathymetry.bin"
   },
