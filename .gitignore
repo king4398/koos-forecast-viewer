@@ -29,3 +29,8 @@ Thumbs.db
 quicklook_mohid*/
 *.png
 *.tar.gz
+
+# Quicklook figures
+quicklook_mohid*/
+*.png
+*.tar.gz
