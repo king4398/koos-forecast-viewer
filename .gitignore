@@ -24,3 +24,8 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Quicklook figures
+quicklook_mohid*/
+*.png
+*.tar.gz
