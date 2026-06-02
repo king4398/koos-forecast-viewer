@@ -37,6 +37,7 @@ const GLState = {
   scalarProgram: null,
   meshProgram: null,
   particleProgram: null,
+  particlePointProgram: null,
 
   scalarPosBuffer: null,
   scalarValBuffer: null,
@@ -44,6 +45,8 @@ const GLState = {
 
   particlePosBuffer: null,
   particleColorBuffer: null,
+  particleHeadPosBuffer: null,
+  particleHeadColorBuffer: null,
 
   scalarAPos: null,
   scalarAVal: null,
@@ -60,6 +63,12 @@ const GLState = {
   particleAPos: null,
   particleAColor: null,
   particleUMatrix: null,
+  particleUPointSize: null,
+
+  particleHeadAPos: null,
+  particleHeadAColor: null,
+  particleHeadUMatrix: null,
+  particleHeadUPointSize: null,
 
   scalarVertexCount: 0,
   meshVertexCount: 0,
@@ -260,11 +269,13 @@ attribute vec2 a_pos;
 attribute vec4 a_color;
 
 uniform mat4 u_matrix;
+uniform float u_point_size;
 
 varying vec4 v_color;
 
 void main() {
   gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
+  gl_PointSize = u_point_size;
   v_color = a_color;
 }
 `;
@@ -275,6 +286,19 @@ precision mediump float;
 varying vec4 v_color;
 
 void main() {
+  gl_FragColor = v_color;
+}
+`;
+
+const PARTICLE_POINT_FS = `
+precision mediump float;
+
+varying vec4 v_color;
+
+void main() {
+  vec2 pc = gl_PointCoord - vec2(0.5, 0.5);
+  float d = length(pc);
+  if (d > 0.5) discard;
   gl_FragColor = v_color;
 }
 `;
@@ -596,7 +620,7 @@ function resetParticles() {
 }
 
 function particleFlowScale() {
-  const base = 0.045;
+  const base = 0.018;
 
   if (!map) return base;
 
@@ -666,7 +690,7 @@ function updateParticles() {
       speed: vec.speed
     });
 
-    const maxTrail = currentVar === "current_speed" ? 12 : 10;
+    const maxTrail = currentVar === "current_speed" ? 10 : 8;
 
     while (p.trail.length > maxTrail) {
       p.trail.shift();
@@ -725,9 +749,12 @@ function pushParticleVertex(pos, col, q, color) {
   col.push(color[0], color[1], color[2], color[3]);
 }
 
+
 function buildParticleBuffers() {
   const pos = [];
   const col = [];
+  const headPos = [];
+  const headCol = [];
 
   for (const p of particles) {
     if (!p || !p.trail || p.trail.length < 2) continue;
@@ -749,12 +776,16 @@ function buildParticleBuffers() {
       const t0 = (k - 1) / Math.max(1, n - 1);
       const t1 = k / Math.max(1, n - 1);
 
-      let a0 = (0.12 + 0.55 * t0) * fadeFactor;
-      let a1 = (0.18 + 0.78 * t1) * fadeFactor;
+      /*
+       * Tail -> head alpha gradient.
+       * Tail is faint, head segment is bright.
+       */
+      let a0 = (0.025 + 0.30 * Math.pow(t0, 1.8)) * fadeFactor;
+      let a1 = (0.050 + 0.72 * Math.pow(t1, 1.45)) * fadeFactor;
 
       if (currentVar === "current_speed") {
-        a0 = (0.16 + 0.62 * t0) * fadeFactor;
-        a1 = (0.24 + 0.86 * t1) * fadeFactor;
+        a0 = (0.045 + 0.36 * Math.pow(t0, 1.8)) * fadeFactor;
+        a1 = (0.090 + 0.86 * Math.pow(t1, 1.35)) * fadeFactor;
       }
 
       const speed = q1.speed || 0.0;
@@ -762,12 +793,21 @@ function buildParticleBuffers() {
       pushParticleVertex(pos, col, q0, particleColor01(speed, a0));
       pushParticleVertex(pos, col, q1, particleColor01(speed, a1));
     }
+
+    const h = p.trail[n - 1];
+    const hSpeed = h.speed || 0.0;
+    const hAlpha = currentVar === "current_speed" ? 0.95 : 0.78;
+
+    pushParticleVertex(headPos, headCol, h, particleColor01(hSpeed, hAlpha));
   }
 
   return {
     pos: new Float32Array(pos),
     col: new Float32Array(col),
-    count: pos.length / 2
+    count: pos.length / 2,
+    headPos: new Float32Array(headPos),
+    headCol: new Float32Array(headCol),
+    headCount: headPos.length / 2
   };
 }
 
@@ -799,9 +839,29 @@ function uploadAndDrawParticles(gl, matrix) {
   gl.vertexAttribPointer(GLState.particleAColor, 4, gl.FLOAT, false, 0, 0);
 
   gl.uniformMatrix4fv(GLState.particleUMatrix, false, matrix);
+  gl.uniform1f(GLState.particleUPointSize, 1.0);
 
   gl.lineWidth(1.0);
   gl.drawArrays(gl.LINES, 0, b.count);
+
+  if (b.headCount > 0 && GLState.particlePointProgram) {
+    gl.useProgram(GLState.particlePointProgram);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleHeadPosBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, b.headPos, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(GLState.particleHeadAPos);
+    gl.vertexAttribPointer(GLState.particleHeadAPos, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleHeadColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, b.headCol, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(GLState.particleHeadAColor);
+    gl.vertexAttribPointer(GLState.particleHeadAColor, 4, gl.FLOAT, false, 0, 0);
+
+    gl.uniformMatrix4fv(GLState.particleHeadUMatrix, false, matrix);
+    gl.uniform1f(GLState.particleHeadUPointSize, currentVar === "current_speed" ? 3.2 : 2.6);
+
+    gl.drawArrays(gl.POINTS, 0, b.headCount);
+  }
 
   map.triggerRepaint();
 }
@@ -834,6 +894,7 @@ function makeMohidLayer() {
       GLState.scalarProgram = makeProgram(gl, SCALAR_VS, SCALAR_FS);
       GLState.meshProgram = makeProgram(gl, MESH_VS, MESH_FS);
       GLState.particleProgram = makeProgram(gl, PARTICLE_VS, PARTICLE_FS);
+      GLState.particlePointProgram = makeProgram(gl, PARTICLE_VS, PARTICLE_POINT_FS);
 
       GLState.scalarAPos = gl.getAttribLocation(GLState.scalarProgram, "a_pos");
       GLState.scalarAVal = gl.getAttribLocation(GLState.scalarProgram, "a_value");
@@ -850,6 +911,12 @@ function makeMohidLayer() {
       GLState.particleAPos = gl.getAttribLocation(GLState.particleProgram, "a_pos");
       GLState.particleAColor = gl.getAttribLocation(GLState.particleProgram, "a_color");
       GLState.particleUMatrix = gl.getUniformLocation(GLState.particleProgram, "u_matrix");
+      GLState.particleUPointSize = gl.getUniformLocation(GLState.particleProgram, "u_point_size");
+
+      GLState.particleHeadAPos = gl.getAttribLocation(GLState.particlePointProgram, "a_pos");
+      GLState.particleHeadAColor = gl.getAttribLocation(GLState.particlePointProgram, "a_color");
+      GLState.particleHeadUMatrix = gl.getUniformLocation(GLState.particlePointProgram, "u_matrix");
+      GLState.particleHeadUPointSize = gl.getUniformLocation(GLState.particlePointProgram, "u_point_size");
 
       GLState.scalarPosBuffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, GLState.scalarPosBuffer);
@@ -869,6 +936,8 @@ function makeMohidLayer() {
 
       GLState.particlePosBuffer = gl.createBuffer();
       GLState.particleColorBuffer = gl.createBuffer();
+      GLState.particleHeadPosBuffer = gl.createBuffer();
+      GLState.particleHeadColorBuffer = gl.createBuffer();
 
       GLState.scalarVertexCount = grid.triPositions.length / 2;
       GLState.meshVertexCount = grid.edgePositions.length / 2;
