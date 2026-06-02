@@ -262,28 +262,25 @@ async function loadGrid() {
 
   const lon = await fetchFloat32(DATA_ROOT + meta.grid.lon_file, n);
   const lat = await fetchFloat32(DATA_ROOT + meta.grid.lat_file, n);
-  const lon = await fetchFloat32(DATA_ROOT + meta.grid.lon_file, n);
-  const lat = await fetchFloat32(DATA_ROOT + meta.grid.lat_file, n);
   const mask = await fetchFloat32(DATA_ROOT + meta.grid.mask_file, n);
   const lonCorner = await fetchFloat32(DATA_ROOT + meta.grid.lon_corner_file, nc);
   const latCorner = await fetchFloat32(DATA_ROOT + meta.grid.lat_corner_file, nc);
 
   let particleLookupCell = null;
   if (meta.grid.particle_lookup_file) {
-    const lookupN = Number(meta.grid.particle_lookup_nx) * Number(meta.grid.particle_lookup_ny);
-    particleLookupCell = await fetchInt32(DATA_ROOT + meta.grid.particle_lookup_file, lookupN);
-  }
+    const lookupN =
+      Number(meta.grid.particle_lookup_nx) *
+      Number(meta.grid.particle_lookup_ny);
 
-  let particleLookupCell = null;
-  if (meta.grid.particle_lookup_file) {
-    const lookupN = Number(meta.grid.particle_lookup_nx) * Number(meta.grid.particle_lookup_ny);
-    particleLookupCell = await fetchInt32(DATA_ROOT + meta.grid.particle_lookup_file, lookupN);
+    particleLookupCell = await fetchInt32(
+      DATA_ROOT + meta.grid.particle_lookup_file,
+      lookupN
+    );
   }
 
   const triPositions = [];
   const cornerIndexForVertex = [];
   const edgePositions = [];
-  const validCellIndices = [];
   const validCellIndices = [];
 
   function cornerIndex(j, i) {
@@ -291,14 +288,20 @@ async function loadGrid() {
   }
 
   function pushCorner(out, ci) {
-    const lon = lonCorner[ci];
-    const lat = latCorner[ci];
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+    const qlon = lonCorner[ci];
+    const qlat = latCorner[ci];
+
+    if (!Number.isFinite(qlon) || !Number.isFinite(qlat)) {
       out.push(0, 0);
       return;
     }
-    const p = mercatorXY(lon, lat);
-    out.push(p[0], p[1]);
+
+    const mc = maplibregl.MercatorCoordinate.fromLngLat({
+      lng: qlon,
+      lat: qlat
+    });
+
+    out.push(mc.x, mc.y);
   }
 
   let validCells = 0;
@@ -306,6 +309,7 @@ async function loadGrid() {
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
       const cell = j * nx + i;
+
       if (mask[cell] <= 0) continue;
 
       const c00 = cornerIndex(j, i);
@@ -330,6 +334,7 @@ async function loadGrid() {
       validCells += 1;
       validCellIndices.push(cell);
 
+      // quad -> two triangles
       pushCorner(triPositions, c00); cornerIndexForVertex.push(c00);
       pushCorner(triPositions, c10); cornerIndexForVertex.push(c10);
       pushCorner(triPositions, c11); cornerIndexForVertex.push(c11);
@@ -338,6 +343,7 @@ async function loadGrid() {
       pushCorner(triPositions, c11); cornerIndexForVertex.push(c11);
       pushCorner(triPositions, c01); cornerIndexForVertex.push(c01);
 
+      // mesh overlay edges
       pushCorner(edgePositions, c00); pushCorner(edgePositions, c10);
       pushCorner(edgePositions, c10); pushCorner(edgePositions, c11);
       pushCorner(edgePositions, c11); pushCorner(edgePositions, c01);
@@ -353,6 +359,7 @@ async function loadGrid() {
     n,
     lon,
     lat,
+    mask,
     particleLookupCell,
     particleLookupNx: Number(meta.grid.particle_lookup_nx || 0),
     particleLookupNy: Number(meta.grid.particle_lookup_ny || 0),
