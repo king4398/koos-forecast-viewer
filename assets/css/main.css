@@ -308,38 +308,10 @@ select option {
   transform: scale(1.1);
 }
 
-#particle-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-}
-
 #raster-canvas {
   pointer-events: none;
 }
 
-#particle-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-}
-
 #raster-canvas {
-  pointer-events: none;
-}
-
-#particle-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-}
-
-#particle-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: 3;
   pointer-events: none;
 }
