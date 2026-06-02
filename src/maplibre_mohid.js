@@ -669,6 +669,29 @@ function particleTargetCount() {
   return Math.max(500, Math.round(base * mul));
 }
 
+function jitterParticlePoint(lon, lat) {
+  /*
+   * Light jitter to avoid obvious cell-center seeding.
+   * Performance-friendly: no extra lookup radius, only one validation.
+   */
+  if (!grid || !Number.isFinite(lon) || !Number.isFinite(lat)) {
+    return { lon, lat };
+  }
+
+  const dx = (meta.grid.lon_max - meta.grid.lon_min) / Math.max(1, grid.nx);
+  const dy = (meta.grid.lat_max - meta.grid.lat_min) / Math.max(1, grid.ny);
+
+  const qlon = lon + (Math.random() - 0.5) * dx * 0.75;
+  const qlat = lat + (Math.random() - 0.5) * dy * 0.75;
+
+  if (vectorAt(qlon, qlat)) {
+    return { lon: qlon, lat: qlat };
+  }
+
+  return { lon, lat };
+}
+
+
 function randomValidParticlePoint() {
   if (!grid || !grid.validCellIndices || grid.validCellIndices.length === 0) {
     return null;
@@ -695,14 +718,14 @@ function randomValidParticlePoint() {
       }
     }
 
-    if (vectorAt(lon, lat)) return { lon, lat };
+    if (vectorAt(lon, lat)) return jitterParticlePoint(lon, lat);
   }
 
   const cell = grid.validCellIndices[
     Math.floor(Math.random() * grid.validCellIndices.length)
   ];
 
-  return { lon: grid.lon[cell], lat: grid.lat[cell] };
+  return jitterParticlePoint(grid.lon[cell], grid.lat[cell]);
 }
 
 function resetOneParticle(p) {
@@ -761,18 +784,19 @@ function particleTrailMax() {
 
 
 
+
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Low zoom previously looked too long because each advection step projected
-   * into a long visible dash. Keep overview shorter/cleaner.
+   * Performance-first advection.
+   * Slightly faster at low zoom, stable at high zoom.
    */
-  if (z <= 4.8) return 0.0070;
-  if (z <= 5.4) return 0.0064;
-  if (z <= 6.2) return 0.0058;
-  if (z <= 7.0) return 0.0052;
-  if (z <= 8.0) return 0.0048;
+  if (z <= 4.8) return 0.0086;
+  if (z <= 5.4) return 0.0078;
+  if (z <= 6.2) return 0.0067;
+  if (z <= 7.0) return 0.0057;
+  if (z <= 8.0) return 0.0049;
 
   return 0.0048;
 }
@@ -1031,16 +1055,16 @@ function uploadAndDrawParticles(gl, matrix) {
    * Quad-line particle width in screen pixels.
    * Wider than GL_LINES, but still natural.
    */
-  let widthPx = currentVar === "current_speed" ? 0.92 : 0.78;
+  let widthPx = currentVar === "current_speed" ? 0.78 : 0.66;
 
   /*
-   * Thin but anti-aliased rounded dashes.
-   * Slightly thinner for performance and cleaner overview.
+   * Thin anti-aliased rounded dashes.
+   * Keep particles light for performance and cleaner visual density.
    */
-  if (z <= 4.8) widthPx *= 0.62;
-  else if (z <= 5.5) widthPx *= 0.70;
-  else if (z <= 6.5) widthPx *= 0.82;
-  else if (z >= 8.5) widthPx *= 0.95;
+  if (z <= 4.8) widthPx *= 0.55;
+  else if (z <= 5.5) widthPx *= 0.62;
+  else if (z <= 6.5) widthPx *= 0.75;
+  else if (z >= 8.5) widthPx *= 0.92;
 
   gl.useProgram(GLState.particleProgram);
 
