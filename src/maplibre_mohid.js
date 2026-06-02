@@ -81,6 +81,17 @@ async function fetchFloat32(url, expectedLen = null) {
   return arr;
 }
 
+async function fetchInt32(url, expectedLen = null) {
+  const res = await fetch(url, { cache: "force-cache" });
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  const buf = await res.arrayBuffer();
+  const arr = new Int32Array(buf);
+  if (expectedLen !== null && arr.length !== expectedLen) {
+    throw new Error(`${url}: ${arr.length} != ${expectedLen}`);
+  }
+  return arr;
+}
+
 function compileShader(gl, type, src) {
   const sh = gl.createShader(type);
   gl.shaderSource(sh, src);
@@ -232,6 +243,12 @@ async function loadGrid() {
   const lonCorner = await fetchFloat32(DATA_ROOT + meta.grid.lon_corner_file, nc);
   const latCorner = await fetchFloat32(DATA_ROOT + meta.grid.lat_corner_file, nc);
 
+  let particleLookupCell = null;
+  if (meta.grid.particle_lookup_file) {
+    const lookupN = Number(meta.grid.particle_lookup_nx) * Number(meta.grid.particle_lookup_ny);
+    particleLookupCell = await fetchInt32(DATA_ROOT + meta.grid.particle_lookup_file, lookupN);
+  }
+
   const triPositions = [];
   const cornerIndexForVertex = [];
   const edgePositions = [];
@@ -304,6 +321,9 @@ async function loadGrid() {
     n,
     lon,
     lat,
+    particleLookupCell,
+    particleLookupNx: Number(meta.grid.particle_lookup_nx || 0),
+    particleLookupNy: Number(meta.grid.particle_lookup_ny || 0),
     validCells,
     validCellIndices,
     triPositions: new Float32Array(triPositions),
@@ -701,40 +721,34 @@ function bindEvents() {
 }
 
 
+
 function vectorAt(lon, lat) {
-  if (!currentU || !currentV || !grid || !grid.validCellIndices) return null;
+  if (!currentU || !currentV || !grid || !grid.particleLookupCell) return null;
 
-  let bestCell = -1;
-  let bestD2 = Infinity;
-  const coslat = Math.max(0.2, Math.cos(lat * Math.PI / 180.0));
+  const nx = grid.particleLookupNx;
+  const ny = grid.particleLookupNy;
 
-  /*
-   * MOHID grid size is small enough for this first stable version.
-   * Search visible particles by nearest wet cell center.
-   * This intentionally mirrors SCHISM's vectorAt() role:
-   *   lon/lat -> u/v/speed
-   */
-  for (let k = 0; k < grid.validCellIndices.length; k++) {
-    const cell = grid.validCellIndices[k];
-    const clon = grid.lon[cell];
-    const clat = grid.lat[cell];
+  if (!nx || !ny) return null;
 
-    if (!Number.isFinite(clon) || !Number.isFinite(clat)) continue;
+  const lonMin = meta.grid.lon_min;
+  const lonMax = meta.grid.lon_max;
+  const latMin = meta.grid.lat_min;
+  const latMax = meta.grid.lat_max;
 
-    const dx = (clon - lon) * coslat;
-    const dy = clat - lat;
-    const d2 = dx * dx + dy * dy;
+  if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return null;
 
-    if (d2 < bestD2) {
-      bestD2 = d2;
-      bestCell = cell;
-    }
-  }
+  let ix = Math.floor((lon - lonMin) / (lonMax - lonMin) * nx);
+  let iy = Math.floor((lat - latMin) / (latMax - latMin) * ny);
 
-  if (bestCell < 0) return null;
+  ix = Math.max(0, Math.min(nx - 1, ix));
+  iy = Math.max(0, Math.min(ny - 1, iy));
 
-  const u = currentU[bestCell];
-  const v = currentV[bestCell];
+  const cell = grid.particleLookupCell[iy * nx + ix];
+
+  if (cell == null || cell < 0 || cell >= grid.n) return null;
+
+  const u = currentU[cell];
+  const v = currentV[cell];
 
   if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
   if (Math.abs(u) > 20 || Math.abs(v) > 20) return null;

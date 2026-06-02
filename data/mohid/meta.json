@@ -24,7 +24,11 @@
     "lon_corner_file": "grid/lon_corner.bin",
     "lat_corner_file": "grid/lat_corner.bin",
     "mask_file": "grid/mask.bin",
-    "bathymetry_file": "grid/bathymetry.bin"
+    "bathymetry_file": "grid/bathymetry.bin",
+    "particle_lookup_file": "grid/particle_lookup_cell.bin",
+    "particle_lookup_nx": 600,
+    "particle_lookup_ny": 600,
+    "particle_lookup_max_distance_deg": 0.12
   },
   "frames": [
     {
