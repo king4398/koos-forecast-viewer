@@ -26,6 +26,13 @@ let scalarCache = new Map();
 let currentU = null;
 let currentV = null;
 
+let particles = [];
+let particleRunning = false;
+let lastParticleTime = 0;
+
+let currentU = null;
+let currentV = null;
+
 let particleCanvas = null;
 let particleCtx = null;
 let particles = [];
@@ -216,6 +223,26 @@ void main() {
 }
 `;
 
+const PARTICLE_VS = `
+precision highp float;
+attribute vec2 a_pos;
+attribute vec4 a_color;
+uniform mat4 u_matrix;
+varying vec4 v_color;
+void main() {
+  gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
+  v_color = a_color;
+}
+`;
+
+const PARTICLE_FS = `
+precision mediump float;
+varying vec4 v_color;
+void main() {
+  gl_FragColor = v_color;
+}
+`;
+
 function cmapCode(name) {
   const c = String(name || "").toLowerCase();
   if (c === "bwr" || c === "rdbu" || c === "bluewhitered") return 1;
@@ -239,6 +266,8 @@ async function loadGrid() {
 
   const lon = await fetchFloat32(DATA_ROOT + meta.grid.lon_file, n);
   const lat = await fetchFloat32(DATA_ROOT + meta.grid.lat_file, n);
+  const lon = await fetchFloat32(DATA_ROOT + meta.grid.lon_file, n);
+  const lat = await fetchFloat32(DATA_ROOT + meta.grid.lat_file, n);
   const mask = await fetchFloat32(DATA_ROOT + meta.grid.mask_file, n);
   const lonCorner = await fetchFloat32(DATA_ROOT + meta.grid.lon_corner_file, nc);
   const latCorner = await fetchFloat32(DATA_ROOT + meta.grid.lat_corner_file, nc);
@@ -249,9 +278,16 @@ async function loadGrid() {
     particleLookupCell = await fetchInt32(DATA_ROOT + meta.grid.particle_lookup_file, lookupN);
   }
 
+  let particleLookupCell = null;
+  if (meta.grid.particle_lookup_file) {
+    const lookupN = Number(meta.grid.particle_lookup_nx) * Number(meta.grid.particle_lookup_ny);
+    particleLookupCell = await fetchInt32(DATA_ROOT + meta.grid.particle_lookup_file, lookupN);
+  }
+
   const triPositions = [];
   const cornerIndexForVertex = [];
   const edgePositions = [];
+  const validCellIndices = [];
   const validCellIndices = [];
 
   function cornerIndex(j, i) {
@@ -438,6 +474,15 @@ function makeMohidLayer() {
 
       GLState.vertexCount = grid.triPositions.length / 2;
       GLState.meshVertexCount = grid.edgePositions.length / 2;
+
+      GLState.particleProgram = makeProgram(gl, PARTICLE_VS, PARTICLE_FS);
+      GLState.particleAPos = gl.getAttribLocation(GLState.particleProgram, "a_pos");
+      GLState.particleAColor = gl.getAttribLocation(GLState.particleProgram, "a_color");
+      GLState.particleUMatrix = gl.getUniformLocation(GLState.particleProgram, "u_matrix");
+      GLState.particlePosBuffer = gl.createBuffer();
+      GLState.particleColorBuffer = gl.createBuffer();
+      GLState.particleVertexCount = 0;
+
       GLState.ready = true;
     },
 
@@ -482,6 +527,8 @@ function makeMohidLayer() {
 
         gl.drawArrays(gl.LINES, 0, GLState.meshVertexCount);
       }
+
+      drawWebglParticles(gl, matrix);
     }
   };
 }
@@ -1083,6 +1130,303 @@ function startParticles() {
   }
 
   particleAnimId = requestAnimationFrame(step);
+}
+
+
+
+function vectorAt(lon, lat) {
+  if (!currentU || !currentV || !grid || !grid.particleLookupCell) return null;
+
+  const nx = grid.particleLookupNx;
+  const ny = grid.particleLookupNy;
+
+  if (!nx || !ny) return null;
+
+  const lonMin = meta.grid.lon_min;
+  const lonMax = meta.grid.lon_max;
+  const latMin = meta.grid.lat_min;
+  const latMax = meta.grid.lat_max;
+
+  if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return null;
+
+  let ix = Math.floor((lon - lonMin) / (lonMax - lonMin) * nx);
+  let iy = Math.floor((lat - latMin) / (latMax - latMin) * ny);
+
+  ix = Math.max(0, Math.min(nx - 1, ix));
+  iy = Math.max(0, Math.min(ny - 1, iy));
+
+  const cell = grid.particleLookupCell[iy * nx + ix];
+
+  if (cell == null || cell < 0 || cell >= grid.n) return null;
+
+  const u = currentU[cell];
+  const v = currentV[cell];
+
+  if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
+  if (Math.abs(u) > 20 || Math.abs(v) > 20) return null;
+
+  const speed = Math.hypot(u, v);
+  if (!Number.isFinite(speed)) return null;
+
+  return { u, v, speed };
+}
+
+function particleTargetCount() {
+  const base = Number(els.particleDensity ? els.particleDensity.value : 900);
+  const z = map ? map.getZoom() : 6.0;
+
+  let mul = 1.0;
+  if (z <= 5.0) mul = 0.50;
+  else if (z < 9.0) mul = 0.50 + (z - 5.0) * (0.50 / 4.0);
+
+  return Math.max(180, Math.round(base * mul));
+}
+
+function randomValidParticlePoint() {
+  if (!grid || !grid.validCellIndices || !grid.validCellIndices.length) return null;
+
+  const b = map ? map.getBounds() : null;
+
+  for (let k = 0; k < 1000; k++) {
+    const cell = grid.validCellIndices[Math.floor(Math.random() * grid.validCellIndices.length)];
+    const lon = grid.lon[cell];
+    const lat = grid.lat[cell];
+
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+    if (b) {
+      if (lon < b.getWest() || lon > b.getEast() || lat < b.getSouth() || lat > b.getNorth()) {
+        continue;
+      }
+    }
+
+    if (vectorAt(lon, lat)) return { lon, lat };
+  }
+
+  const cell = grid.validCellIndices[Math.floor(Math.random() * grid.validCellIndices.length)];
+  return { lon: grid.lon[cell], lat: grid.lat[cell] };
+}
+
+function resetOneParticle(p) {
+  const q = randomValidParticlePoint();
+
+  if (!q) {
+    p.lon = 125.0;
+    p.lat = 36.0;
+  } else {
+    p.lon = q.lon;
+    p.lat = q.lat;
+  }
+
+  p.age = Math.floor(Math.random() * 60);
+  p.maxAge = 140 + Math.floor(Math.random() * 120);
+  p.fadeAge = Math.floor(Math.random() * 12);
+  p.trail = [{ lon: p.lon, lat: p.lat, speed: 0.0 }];
+}
+
+function resetParticles() {
+  particles = [];
+
+  if (!currentU || !currentV || !grid) return;
+
+  const n = particleTargetCount();
+
+  for (let i = 0; i < n; i++) {
+    const p = {};
+    resetOneParticle(p);
+    particles.push(p);
+  }
+}
+
+function particleFlowScale() {
+  const base = 0.005;
+  if (!map) return base;
+
+  const z = map.getZoom();
+  const factor = Math.pow(0.75, Math.max(0, z - 7.0));
+
+  return Math.max(base * 0.20, base * factor);
+}
+
+function speedToRgb01(spd) {
+  const vm = meta.variables.current_speed || { vmin: 0.0, vmax: 1.0 };
+
+  let t = (spd - vm.vmin) / Math.max(1e-12, vm.vmax - vm.vmin);
+  if (!Number.isFinite(t)) t = 0.0;
+  t = Math.max(0.0, Math.min(1.0, t));
+
+  const stops = [
+    [0.05, 0.18, 0.95],
+    [0.05, 0.62, 1.00],
+    [0.10, 0.78, 0.42],
+    [0.92, 0.86, 0.22],
+    [0.95, 0.55, 0.10],
+    [0.82, 0.12, 0.08]
+  ];
+
+  const x = t * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.max(0, Math.floor(x)));
+  const f = x - i;
+
+  const a = stops[i];
+  const b = stops[i + 1];
+
+  return [
+    a[0] * (1 - f) + b[0] * f,
+    a[1] * (1 - f) + b[1] * f,
+    a[2] * (1 - f) + b[2] * f
+  ];
+}
+
+function particleColor01(speed, alpha) {
+  if (currentVar === "current_speed") {
+    const c = speedToRgb01(speed);
+    return [c[0], c[1], c[2], alpha];
+  }
+
+  return [0.92, 0.92, 0.92, alpha];
+}
+
+function updateWebglParticles() {
+  if (!particleRunning || !currentU || !currentV || !grid) return;
+
+  if (els.currentOverlay && !els.currentOverlay.checked) {
+    particles = [];
+    return;
+  }
+
+  const target = particleTargetCount();
+
+  if (particles.length < target * 0.75 || particles.length > target * 1.25) {
+    resetParticles();
+  }
+
+  const dt = particleFlowScale();
+
+  for (const p of particles) {
+    if (!p || p.age > p.maxAge) {
+      resetOneParticle(p);
+      continue;
+    }
+
+    const vec = vectorAt(p.lon, p.lat);
+
+    if (!vec) {
+      resetOneParticle(p);
+      continue;
+    }
+
+    const latRad = p.lat * Math.PI / 180.0;
+    let coslat = Math.cos(latRad);
+    if (Math.abs(coslat) < 1e-6) coslat = 1e-6;
+
+    const newLon = p.lon + (vec.u * dt) / coslat;
+    const newLat = p.lat + vec.v * dt;
+
+    if (!vectorAt(newLon, newLat)) {
+      resetOneParticle(p);
+      continue;
+    }
+
+    p.lon = newLon;
+    p.lat = newLat;
+    p.age += 1;
+    p.fadeAge = (p.fadeAge || 0) + 1;
+
+    if (!p.trail) p.trail = [];
+    p.trail.push({ lon: p.lon, lat: p.lat, speed: vec.speed });
+
+    const trailMax = 5;
+    while (p.trail.length > trailMax) p.trail.shift();
+  }
+}
+
+function pushParticleVertex(posOut, colOut, q, color) {
+  const mc = maplibregl.MercatorCoordinate.fromLngLat({ lng: q.lon, lat: q.lat });
+  posOut.push(mc.x, mc.y);
+  colOut.push(color[0], color[1], color[2], color[3]);
+}
+
+function buildParticleBuffers() {
+  const pos = [];
+  const col = [];
+
+  for (const p of particles) {
+    if (!p || !p.trail || p.trail.length < 2) continue;
+
+    const n = p.trail.length;
+
+    for (let k = 1; k < n; k++) {
+      const q0 = p.trail[k - 1];
+      const q1 = p.trail[k];
+
+      if (
+        !Number.isFinite(q0.lon) || !Number.isFinite(q0.lat) ||
+        !Number.isFinite(q1.lon) || !Number.isFinite(q1.lat)
+      ) {
+        continue;
+      }
+
+      const segT = k / Math.max(1, n - 1);
+      const fade = Math.min(1.0, (p.fadeAge || 0) / 18.0);
+
+      let alpha = (0.08 + 0.44 * segT) * fade;
+      if (currentVar === "current_speed") alpha = (0.12 + 0.58 * segT) * fade;
+
+      const c0 = particleColor01(q1.speed || 0.0, alpha * 0.65);
+      const c1 = particleColor01(q1.speed || 0.0, alpha);
+
+      pushParticleVertex(pos, col, q0, c0);
+      pushParticleVertex(pos, col, q1, c1);
+    }
+  }
+
+  return {
+    pos: new Float32Array(pos),
+    col: new Float32Array(col),
+    count: pos.length / 2
+  };
+}
+
+function drawWebglParticles(gl, matrix) {
+  if (!GLState.ready || !GLState.particleProgram) return;
+  if (!particleRunning) return;
+  if (els.currentOverlay && !els.currentOverlay.checked) return;
+  if (!currentU || !currentV) return;
+
+  updateWebglParticles();
+
+  const b = buildParticleBuffers();
+
+  if (b.count <= 0) {
+    map.triggerRepaint();
+    return;
+  }
+
+  gl.useProgram(GLState.particleProgram);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particlePosBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, b.pos, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(GLState.particleAPos);
+  gl.vertexAttribPointer(GLState.particleAPos, 2, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleColorBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, b.col, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(GLState.particleAColor);
+  gl.vertexAttribPointer(GLState.particleAColor, 4, gl.FLOAT, false, 0, 0);
+
+  gl.uniformMatrix4fv(GLState.particleUMatrix, false, matrix);
+
+  gl.lineWidth(1.0);
+  gl.drawArrays(gl.LINES, 0, b.count);
+
+  map.triggerRepaint();
+}
+
+function startWebglParticles() {
+  particleRunning = true;
+  if (!particles.length) resetParticles();
+  map.triggerRepaint();
 }
 
 
