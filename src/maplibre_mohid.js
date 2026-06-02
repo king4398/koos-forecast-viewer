@@ -787,16 +787,16 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Balanced Windy-like dash.
-   * Short enough for performance, but long enough to show a visible tail.
+   * Visible but not stream-line long.
+   * Segment count is trailMax - 1.
    */
-  if (z <= 4.8) return 5;
-  if (z <= 5.5) return 5;
-  if (z <= 6.5) return 6;
-  if (z <= 7.5) return 7;
-  if (z <= 8.5) return 8;
+  if (z <= 4.8) return 7;
+  if (z <= 5.5) return 7;
+  if (z <= 6.5) return 8;
+  if (z <= 7.5) return 9;
+  if (z <= 8.5) return 10;
 
-  return 9;
+  return 11;
 }
 
 function particleFlowScale() {
@@ -1009,7 +1009,7 @@ function buildParticleBuffers() {
     if (!p || !p.trail || p.trail.length < 2) continue;
 
     const n = p.trail.length;
-    const fadeFactor = Math.min(1.0, (p.fadeAge || 0) / 22.0);
+    const fadeFactor = Math.min(1.0, (p.fadeAge || 0) / 14.0);
 
     for (let k = 1; k < n; k++) {
       const q0 = p.trail[k - 1];
@@ -1030,16 +1030,20 @@ function buildParticleBuffers() {
        * Natural head/tail gradient.
        * No bright head dot. Just gradually stronger toward the head.
        */
-      let a0 = (0.035 + 0.24 * Math.pow(t0, 1.45)) * fadeFactor * zoomAlphaBoost;
-      let a1 = (0.060 + 0.40 * Math.pow(t1, 1.25)) * fadeFactor * zoomAlphaBoost;
+      /*
+       * Slightly stronger tail visibility.
+       * Keep head brighter, but do not make it a dot.
+       */
+      let a0 = (0.060 + 0.28 * Math.pow(t0, 1.35)) * fadeFactor * zoomAlphaBoost;
+      let a1 = (0.100 + 0.44 * Math.pow(t1, 1.18)) * fadeFactor * zoomAlphaBoost;
 
       if (particlesColoredBySpeed()) {
-        a0 = (0.060 + 0.34 * Math.pow(t0, 1.40)) * fadeFactor * zoomAlphaBoost;
-        a1 = (0.095 + 0.58 * Math.pow(t1, 1.20)) * fadeFactor * zoomAlphaBoost;
+        a0 = (0.090 + 0.38 * Math.pow(t0, 1.30)) * fadeFactor * zoomAlphaBoost;
+        a1 = (0.145 + 0.62 * Math.pow(t1, 1.12)) * fadeFactor * zoomAlphaBoost;
       }
 
-      a0 = Math.min(a0, particlesColoredBySpeed() ? 0.55 : 0.34);
-      a1 = Math.min(a1, particlesColoredBySpeed() ? 0.78 : 0.50);
+      a0 = Math.min(a0, particlesColoredBySpeed() ? 0.62 : 0.42);
+      a1 = Math.min(a1, particlesColoredBySpeed() ? 0.82 : 0.58);
 
       const c0 = particleColor01(speed, a0);
       const c1 = particleColor01(speed, a1);
@@ -1090,10 +1094,10 @@ function uploadAndDrawParticles(gl, matrix) {
   /*
    * Thin anti-aliased rounded dashes.
    */
-  if (z <= 4.8) widthPx *= 0.58;
-  else if (z <= 5.5) widthPx *= 0.66;
-  else if (z <= 6.5) widthPx *= 0.80;
-  else if (z >= 8.5) widthPx *= 0.96;
+  if (z <= 4.8) widthPx *= 0.68;
+  else if (z <= 5.5) widthPx *= 0.74;
+  else if (z <= 6.5) widthPx *= 0.84;
+  else if (z >= 8.5) widthPx *= 0.98;
 
   gl.useProgram(GLState.particleProgram);
 
