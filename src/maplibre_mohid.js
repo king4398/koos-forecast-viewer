@@ -638,15 +638,23 @@ function particleTrailMax() {
   return currentVar === "current_speed" ? 16 : 14;
 }
 
+
 function particleFlowScale() {
-  const base = 0.006;
+  const z = map ? map.getZoom() : 6.0;
 
-  if (!map) return base;
+  /*
+   * Keep particles from looking frozen when zoomed out.
+   * At low zoom, the same geographic displacement is very short on screen,
+   * so use a larger advection step.
+   */
+  if (z <= 4.5) return 0.030;
+  if (z <= 5.0) return 0.024;
+  if (z <= 5.8) return 0.019;
+  if (z <= 6.6) return 0.014;
+  if (z <= 7.4) return 0.010;
+  if (z <= 8.3) return 0.0075;
 
-  const z = map.getZoom();
-  const factor = Math.pow(0.75, Math.max(0, z - 7.0));
-
-  return Math.max(base * 0.20, base * factor);
+  return 0.006;
 }
 
 function updateParticles() {
@@ -749,13 +757,20 @@ function speedToRgb01(speed) {
   ];
 }
 
+
 function particleColor01(speed, alpha) {
+  /*
+   * Follow KOP/SCHISM particle color logic:
+   * - scalar overlay particles: light gray/white rgba(235,235,235,0.55)
+   * - current-speed particles: speed colormap
+   */
   if (currentVar === "current_speed") {
     const c = speedToRgb01(speed);
     return [c[0], c[1], c[2], alpha];
   }
 
-  return [0.92, 0.92, 0.92, alpha];
+  // rgba(235,235,235, alpha) normalized to 0~1.
+  return [235.0 / 255.0, 235.0 / 255.0, 235.0 / 255.0, alpha];
 }
 
 function pushParticleVertex(pos, col, q, color) {
@@ -780,13 +795,13 @@ function buildParticleBuffers() {
    * At low zoom, lines become visually tiny.
    * Use stronger alpha when zoomed out, but keep head/tail natural.
    */
-  let zoomAlphaBoost = 1.35;
-  if (z <= 4.5) zoomAlphaBoost = 4.20;
-  else if (z <= 5.0) zoomAlphaBoost = 3.70;
-  else if (z <= 5.8) zoomAlphaBoost = 3.10;
-  else if (z <= 6.6) zoomAlphaBoost = 2.55;
-  else if (z <= 7.4) zoomAlphaBoost = 2.05;
-  else if (z <= 8.3) zoomAlphaBoost = 1.65;
+  let zoomAlphaBoost = 1.00;
+  if (z <= 4.5) zoomAlphaBoost = 2.10;
+  else if (z <= 5.0) zoomAlphaBoost = 1.85;
+  else if (z <= 5.8) zoomAlphaBoost = 1.60;
+  else if (z <= 6.6) zoomAlphaBoost = 1.38;
+  else if (z <= 7.4) zoomAlphaBoost = 1.20;
+  else if (z <= 8.3) zoomAlphaBoost = 1.08;
 
   for (const p of particles) {
     if (!p || !p.trail || p.trail.length < 2) continue;
@@ -812,16 +827,21 @@ function buildParticleBuffers() {
        * Smooth tail-to-head alpha gradient.
        * No artificial dot at the head.
        */
-      let a0 = (0.055 + 0.58 * Math.pow(t0, 1.35)) * fadeFactor * zoomAlphaBoost;
-      let a1 = (0.090 + 0.92 * Math.pow(t1, 1.18)) * fadeFactor * zoomAlphaBoost;
+      /*
+       * KOP/SCHISM-like particle opacity:
+       * overlay particles are pale and not too strong,
+       * current-speed particles are stronger because they are colored.
+       */
+      let a0 = (0.045 + 0.20 * Math.pow(t0, 1.55)) * fadeFactor * zoomAlphaBoost;
+      let a1 = (0.080 + 0.34 * Math.pow(t1, 1.35)) * fadeFactor * zoomAlphaBoost;
 
       if (currentVar === "current_speed") {
-        a0 = (0.075 + 0.66 * Math.pow(t0, 1.30)) * fadeFactor * zoomAlphaBoost;
-        a1 = (0.120 + 1.05 * Math.pow(t1, 1.12)) * fadeFactor * zoomAlphaBoost;
+        a0 = (0.080 + 0.30 * Math.pow(t0, 1.45)) * fadeFactor * zoomAlphaBoost;
+        a1 = (0.140 + 0.52 * Math.pow(t1, 1.25)) * fadeFactor * zoomAlphaBoost;
       }
 
-      a0 = Math.min(a0, 0.88);
-      a1 = Math.min(a1, currentVar === "current_speed" ? 1.0 : 0.95);
+      a0 = Math.min(a0, currentVar === "current_speed" ? 0.58 : 0.36);
+      a1 = Math.min(a1, currentVar === "current_speed" ? 0.78 : 0.55);
 
       const speed = q1.speed || 0.0;
 
