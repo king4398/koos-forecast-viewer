@@ -270,6 +270,9 @@ uniform vec2 u_viewport;
 uniform float u_width;
 
 varying vec4 v_color;
+varying float v_side;
+varying float v_t;
+varying float v_len;
 
 void main() {
   vec4 c0 = u_matrix * vec4(a_start, 0.0, 1.0);
@@ -278,34 +281,71 @@ void main() {
   vec2 p0 = c0.xy / c0.w;
   vec2 p1 = c1.xy / c1.w;
 
-  vec2 dir = (p1 - p0) * u_viewport;
-  float len = length(dir);
+  vec2 dirPx = (p1 - p0) * u_viewport;
+  float lenPx = length(dirPx);
 
-  if (len < 1.0e-6) {
-    dir = vec2(1.0, 0.0);
+  if (lenPx < 1.0e-6) {
+    dirPx = vec2(1.0, 0.0);
+    lenPx = 1.0;
   } else {
-    dir = dir / len;
+    dirPx = dirPx / lenPx;
   }
 
-  vec2 normal = vec2(-dir.y, dir.x);
-
+  vec2 normal = vec2(-dirPx.y, dirPx.x);
   vec2 p = mix(p0, p1, a_t);
 
-  // pixel width -> NDC offset
-  vec2 offset = normal * a_side * u_width / u_viewport * 2.0;
+  /*
+   * Expand by a little more than width to allow smooth antialias edge.
+   */
+  float expand = u_width + 1.25;
+  vec2 offset = normal * a_side * expand / u_viewport * 2.0;
 
   gl_Position = vec4(p + offset, 0.0, 1.0);
+
   v_color = a_color;
+  v_side = a_side;
+  v_t = a_t;
+  v_len = lenPx;
 }
 `;
 
 const PARTICLE_FS = `
 precision mediump float;
 
+uniform float u_width;
+
 varying vec4 v_color;
+varying float v_side;
+varying float v_t;
+varying float v_len;
 
 void main() {
-  gl_FragColor = v_color;
+  /*
+   * Pixel-space rounded capsule:
+   * x = along segment in pixels
+   * y = across segment in pixels
+   */
+  float radius = max(0.5, u_width);
+  float expand = radius + 1.25;
+
+  float x = v_t * v_len;
+  float y = abs(v_side) * expand;
+
+  float d;
+
+  if (x < radius) {
+    d = length(vec2(x - radius, y)) - radius;
+  } else if (x > v_len - radius) {
+    d = length(vec2(x - (v_len - radius), y)) - radius;
+  } else {
+    d = y - radius;
+  }
+
+  float aa = 1.0 - smoothstep(0.0, 1.35, d);
+
+  if (aa <= 0.01) discard;
+
+  gl_FragColor = vec4(v_color.rgb, v_color.a * aa);
 }
 `;
 
@@ -507,13 +547,14 @@ function buildVertexValues(values) {
   return out;
 }
 
+
 function vectorAt(lon, lat) {
   if (!currentU || !currentV || !grid || !grid.particleLookupCell) return null;
 
-  const nx = grid.particleLookupNx;
-  const ny = grid.particleLookupNy;
+  const lnx = grid.particleLookupNx;
+  const lny = grid.particleLookupNy;
 
-  if (!nx || !ny) return null;
+  if (!lnx || !lny) return null;
 
   const lonMin = meta.grid.lon_min;
   const lonMax = meta.grid.lon_max;
@@ -522,39 +563,110 @@ function vectorAt(lon, lat) {
 
   if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return null;
 
-  let ix = Math.floor((lon - lonMin) / (lonMax - lonMin) * nx);
-  let iy = Math.floor((lat - latMin) / (latMax - latMin) * ny);
+  let ix = Math.floor((lon - lonMin) / (lonMax - lonMin) * lnx);
+  let iy = Math.floor((lat - latMin) / (latMax - latMin) * lny);
 
-  ix = Math.max(0, Math.min(nx - 1, ix));
-  iy = Math.max(0, Math.min(ny - 1, iy));
+  ix = Math.max(0, Math.min(lnx - 1, ix));
+  iy = Math.max(0, Math.min(lny - 1, iy));
 
-  const cell = grid.particleLookupCell[iy * nx + ix];
+  /*
+   * Smooth vector sampling:
+   * Old version used only one nearest cell, which makes particles look blocky.
+   * This samples unique nearby cells from the particle lookup grid and
+   * blends u/v with inverse-distance weights.
+   */
+  const coslat = Math.max(0.2, Math.cos(lat * Math.PI / 180.0));
+  const seen = new Set();
 
-  if (cell == null || cell < 0 || cell >= grid.n) return null;
+  let sw = 0.0;
+  let su = 0.0;
+  let sv = 0.0;
 
-  const u = currentU[cell];
-  const v = currentV[cell];
+  let bestCell = -1;
+  let bestD2 = 1.0e30;
 
-  if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
-  if (Math.abs(u) > 20.0 || Math.abs(v) > 20.0) return null;
+  const radius = 2;
 
-  const speed = Math.hypot(u, v);
+  for (let dy = -radius; dy <= radius; dy++) {
+    const yy = iy + dy;
+    if (yy < 0 || yy >= lny) continue;
 
-  if (!Number.isFinite(speed)) return null;
+    for (let dx = -radius; dx <= radius; dx++) {
+      const xx = ix + dx;
+      if (xx < 0 || xx >= lnx) continue;
 
-  return { u, v, speed };
+      const cell = grid.particleLookupCell[yy * lnx + xx];
+
+      if (cell == null || cell < 0 || cell >= grid.n) continue;
+      if (seen.has(cell)) continue;
+      seen.add(cell);
+
+      const cl0 = grid.lon[cell];
+      const ct0 = grid.lat[cell];
+      const u = currentU[cell];
+      const v = currentV[cell];
+
+      if (!Number.isFinite(cl0) || !Number.isFinite(ct0)) continue;
+      if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
+      if (Math.abs(u) > 20.0 || Math.abs(v) > 20.0) continue;
+
+      const dlon = (cl0 - lon) * coslat;
+      const dlat = ct0 - lat;
+      const d2 = dlon * dlon + dlat * dlat;
+
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        bestCell = cell;
+      }
+
+      /*
+       * Small epsilon prevents a single exact lookup from dominating too hard,
+       * but still strongly favors close cells.
+       */
+      const w = 1.0 / (d2 + 1.0e-7);
+
+      sw += w;
+      su += u * w;
+      sv += v * w;
+    }
+  }
+
+  if (sw > 0.0) {
+    const u = su / sw;
+    const v = sv / sw;
+    const speed = Math.hypot(u, v);
+
+    if (!Number.isFinite(speed)) return null;
+
+    return { u, v, speed };
+  }
+
+  if (bestCell >= 0) {
+    const u = currentU[bestCell];
+    const v = currentV[bestCell];
+
+    if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
+
+    const speed = Math.hypot(u, v);
+
+    if (!Number.isFinite(speed)) return null;
+
+    return { u, v, speed };
+  }
+
+  return null;
 }
 
 function particleTargetCount() {
-  const base = Number(els.particleDensity ? els.particleDensity.value : 1300);
+  const base = Number(els.particleDensity ? els.particleDensity.value : 1800);
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
 
-  if (z <= 5.0) mul = 0.88;
-  else if (z < 9.0) mul = 0.88 + (z - 5.0) * (0.12 / 4.0);
+  if (z <= 5.0) mul = 0.82;
+  else if (z < 9.0) mul = 0.82 + (z - 5.0) * (0.18 / 4.0);
 
-  return Math.max(450, Math.round(base * mul));
+  return Math.max(700, Math.round(base * mul));
 }
 
 function randomValidParticlePoint() {
@@ -919,16 +1031,15 @@ function uploadAndDrawParticles(gl, matrix) {
    * Quad-line particle width in screen pixels.
    * Wider than GL_LINES, but still natural.
    */
-  let widthPx = currentVar === "current_speed" ? 1.30 : 1.05;
+  let widthPx = currentVar === "current_speed" ? 1.05 : 0.92;
 
   /*
-   * Zoomed-out particles should be thinner and cleaner.
-   * Zoomed-in particles can stay slightly thicker.
+   * Thin but anti-aliased rounded dashes.
    */
   if (z <= 4.8) widthPx *= 0.72;
   else if (z <= 5.5) widthPx *= 0.80;
   else if (z <= 6.5) widthPx *= 0.90;
-  else if (z >= 8.5) widthPx *= 0.98;
+  else if (z >= 8.5) widthPx *= 1.00;
 
   gl.useProgram(GLState.particleProgram);
 
