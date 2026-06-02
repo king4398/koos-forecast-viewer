@@ -619,8 +619,24 @@ function resetParticles() {
   lastParticleUpdateMs = performance.now();
 }
 
+
+function particleTrailMax() {
+  const z = map ? map.getZoom() : 6.0;
+
+  /*
+   * At low zoom, geographic displacement becomes very short in screen pixels.
+   * Keep a longer map-fixed history so tails remain visible when zoomed out.
+   */
+  if (z <= 5.0) return currentVar === "current_speed" ? 34 : 30;
+  if (z <= 6.0) return currentVar === "current_speed" ? 28 : 24;
+  if (z <= 7.0) return currentVar === "current_speed" ? 22 : 19;
+  if (z <= 8.0) return currentVar === "current_speed" ? 16 : 14;
+
+  return currentVar === "current_speed" ? 11 : 9;
+}
+
 function particleFlowScale() {
-  const base = 0.018;
+  const base = 0.006;
 
   if (!map) return base;
 
@@ -690,7 +706,7 @@ function updateParticles() {
       speed: vec.speed
     });
 
-    const maxTrail = currentVar === "current_speed" ? 10 : 8;
+    const maxTrail = particleTrailMax();
 
     while (p.trail.length > maxTrail) {
       p.trail.shift();
@@ -750,17 +766,28 @@ function pushParticleVertex(pos, col, q, color) {
 }
 
 
+
 function buildParticleBuffers() {
   const pos = [];
   const col = [];
-  const headPos = [];
-  const headCol = [];
+
+  const z = map ? map.getZoom() : 6.0;
+
+  /*
+   * At low zoom, lines become visually tiny.
+   * Use stronger alpha when zoomed out, but keep head/tail natural.
+   */
+  let zoomAlphaBoost = 1.0;
+  if (z <= 5.0) zoomAlphaBoost = 1.85;
+  else if (z <= 6.0) zoomAlphaBoost = 1.55;
+  else if (z <= 7.0) zoomAlphaBoost = 1.30;
+  else if (z <= 8.0) zoomAlphaBoost = 1.12;
 
   for (const p of particles) {
     if (!p || !p.trail || p.trail.length < 2) continue;
 
     const n = p.trail.length;
-    const fadeFactor = Math.min(1.0, (p.fadeAge || 0) / 18.0);
+    const fadeFactor = Math.min(1.0, (p.fadeAge || 0) / 22.0);
 
     for (let k = 1; k < n; k++) {
       const q0 = p.trail[k - 1];
@@ -777,37 +804,31 @@ function buildParticleBuffers() {
       const t1 = k / Math.max(1, n - 1);
 
       /*
-       * Tail -> head alpha gradient.
-       * Tail is faint, head segment is bright.
+       * Smooth tail-to-head alpha gradient.
+       * No artificial dot at the head.
        */
-      let a0 = (0.025 + 0.30 * Math.pow(t0, 1.8)) * fadeFactor;
-      let a1 = (0.050 + 0.72 * Math.pow(t1, 1.45)) * fadeFactor;
+      let a0 = (0.030 + 0.42 * Math.pow(t0, 1.55)) * fadeFactor * zoomAlphaBoost;
+      let a1 = (0.055 + 0.72 * Math.pow(t1, 1.35)) * fadeFactor * zoomAlphaBoost;
 
       if (currentVar === "current_speed") {
-        a0 = (0.045 + 0.36 * Math.pow(t0, 1.8)) * fadeFactor;
-        a1 = (0.090 + 0.86 * Math.pow(t1, 1.35)) * fadeFactor;
+        a0 = (0.050 + 0.48 * Math.pow(t0, 1.50)) * fadeFactor * zoomAlphaBoost;
+        a1 = (0.085 + 0.82 * Math.pow(t1, 1.25)) * fadeFactor * zoomAlphaBoost;
       }
+
+      a0 = Math.min(a0, 0.72);
+      a1 = Math.min(a1, currentVar === "current_speed" ? 0.95 : 0.82);
 
       const speed = q1.speed || 0.0;
 
       pushParticleVertex(pos, col, q0, particleColor01(speed, a0));
       pushParticleVertex(pos, col, q1, particleColor01(speed, a1));
     }
-
-    const h = p.trail[n - 1];
-    const hSpeed = h.speed || 0.0;
-    const hAlpha = currentVar === "current_speed" ? 0.95 : 0.78;
-
-    pushParticleVertex(headPos, headCol, h, particleColor01(hSpeed, hAlpha));
   }
 
   return {
     pos: new Float32Array(pos),
     col: new Float32Array(col),
-    count: pos.length / 2,
-    headPos: new Float32Array(headPos),
-    headCol: new Float32Array(headCol),
-    headCount: headPos.length / 2
+    count: pos.length / 2
   };
 }
 
@@ -839,29 +860,8 @@ function uploadAndDrawParticles(gl, matrix) {
   gl.vertexAttribPointer(GLState.particleAColor, 4, gl.FLOAT, false, 0, 0);
 
   gl.uniformMatrix4fv(GLState.particleUMatrix, false, matrix);
-  gl.uniform1f(GLState.particleUPointSize, 1.0);
-
   gl.lineWidth(1.0);
   gl.drawArrays(gl.LINES, 0, b.count);
-
-  if (b.headCount > 0 && GLState.particlePointProgram) {
-    gl.useProgram(GLState.particlePointProgram);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleHeadPosBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, b.headPos, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(GLState.particleHeadAPos);
-    gl.vertexAttribPointer(GLState.particleHeadAPos, 2, gl.FLOAT, false, 0, 0);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleHeadColorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, b.headCol, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(GLState.particleHeadAColor);
-    gl.vertexAttribPointer(GLState.particleHeadAColor, 4, gl.FLOAT, false, 0, 0);
-
-    gl.uniformMatrix4fv(GLState.particleHeadUMatrix, false, matrix);
-    gl.uniform1f(GLState.particleHeadUPointSize, currentVar === "current_speed" ? 3.2 : 2.6);
-
-    gl.drawArrays(gl.POINTS, 0, b.headCount);
-  }
 
   map.triggerRepaint();
 }
