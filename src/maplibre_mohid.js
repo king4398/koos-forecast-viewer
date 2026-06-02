@@ -546,15 +546,15 @@ function vectorAt(lon, lat) {
 }
 
 function particleTargetCount() {
-  const base = Number(els.particleDensity ? els.particleDensity.value : 1400);
+  const base = Number(els.particleDensity ? els.particleDensity.value : 900);
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
 
-  if (z <= 5.0) mul = 0.85;
-  else if (z < 9.0) mul = 0.85 + (z - 5.0) * (0.15 / 4.0);
+  if (z <= 5.0) mul = 0.55;
+  else if (z < 9.0) mul = 0.55 + (z - 5.0) * (0.45 / 4.0);
 
-  return Math.max(400, Math.round(base * mul));
+  return Math.max(250, Math.round(base * mul));
 }
 
 function randomValidParticlePoint() {
@@ -646,22 +646,22 @@ function particleTrailMax() {
 }
 
 
+
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Keep particles from looking frozen when zoomed out.
-   * At low zoom, the same geographic displacement is very short on screen,
-   * so use a larger advection step.
+   * Low zoom needs a little more advection so particles do not look frozen.
+   * High zoom should stay calm.
    */
-  if (z <= 4.5) return 0.030;
-  if (z <= 5.0) return 0.024;
-  if (z <= 5.8) return 0.019;
-  if (z <= 6.6) return 0.014;
-  if (z <= 7.4) return 0.010;
-  if (z <= 8.3) return 0.0075;
+  if (z <= 4.5) return 0.018;
+  if (z <= 5.0) return 0.015;
+  if (z <= 5.8) return 0.012;
+  if (z <= 6.6) return 0.009;
+  if (z <= 7.4) return 0.007;
+  if (z <= 8.3) return 0.0058;
 
-  return 0.006;
+  return 0.0048;
 }
 
 function updateParticles() {
@@ -918,9 +918,9 @@ function uploadAndDrawParticles(gl, matrix) {
    * Quad-line particle width in screen pixels.
    * Wider than GL_LINES, but still natural.
    */
-  let widthPx = currentVar === "current_speed" ? 1.65 : 1.35;
-  if (z <= 5.0) widthPx *= 1.15;
-  else if (z >= 8.5) widthPx *= 0.92;
+  let widthPx = currentVar === "current_speed" ? 1.35 : 1.15;
+  if (z <= 5.0) widthPx *= 1.08;
+  else if (z >= 8.5) widthPx *= 0.95;
 
   gl.useProgram(GLState.particleProgram);
 
