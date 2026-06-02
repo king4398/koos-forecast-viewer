@@ -889,7 +889,7 @@ function makeMohidLayer() {
         gl.useProgram(GLState.scalarProgram);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, GLState.scalarPosBuffer);
-        larAPos);
+        gl.enableVertexAttribArray(GLState.scalarAPos);
         gl.vertexAttribPointer(GLState.scalarAPos, 2, gl.FLOAT, false, 0, 0);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, GLState.scalarValBuffer);
