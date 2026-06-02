@@ -596,7 +596,7 @@ function resetParticles() {
 }
 
 function particleFlowScale() {
-  const base = 0.005;
+  const base = 0.045;
 
   if (!map) return base;
 
@@ -666,7 +666,7 @@ function updateParticles() {
       speed: vec.speed
     });
 
-    const maxTrail = currentVar === "current_speed" ? 7 : 6;
+    const maxTrail = currentVar === "current_speed" ? 12 : 10;
 
     while (p.trail.length > maxTrail) {
       p.trail.shift();
@@ -749,12 +749,12 @@ function buildParticleBuffers() {
       const t0 = (k - 1) / Math.max(1, n - 1);
       const t1 = k / Math.max(1, n - 1);
 
-      let a0 = (0.04 + 0.38 * t0) * fadeFactor;
-      let a1 = (0.06 + 0.54 * t1) * fadeFactor;
+      let a0 = (0.12 + 0.55 * t0) * fadeFactor;
+      let a1 = (0.18 + 0.78 * t1) * fadeFactor;
 
       if (currentVar === "current_speed") {
-        a0 = (0.08 + 0.45 * t0) * fadeFactor;
-        a1 = (0.12 + 0.66 * t1) * fadeFactor;
+        a0 = (0.16 + 0.62 * t0) * fadeFactor;
+        a1 = (0.24 + 0.86 * t1) * fadeFactor;
       }
 
       const speed = q1.speed || 0.0;
