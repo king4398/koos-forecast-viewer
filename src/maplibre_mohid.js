@@ -127,11 +127,11 @@ function configureModelControls() {
   const title = document.querySelector("#top-panel .title");
   if (title) title.textContent = "KOOS Forecast Viewer";
 
-  const particleLabel = document.querySelector('label.check-row span');
-  if (particleLabel) {
-    particleLabel.textContent =
-      currentModel === "swan" ? "Wave direction particles" : "Current particles";
-  }
+  const meshLabel = document.getElementById("mesh-overlay-label");
+  if (meshLabel) meshLabel.textContent = "Mesh overlay";
+
+  const particleLabel = document.getElementById("particle-overlay-label");
+  if (particleLabel) particleLabel.textContent = "Particle animation";
 }
 
 function isSwanModel() {
@@ -749,7 +749,7 @@ function particleTargetCount() {
    * Fixed Mid density.
    * UI particle density selector was removed.
    */
-  const base = 1200;
+  const base = currentModel === "swan" ? 1700 : 1200;
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
@@ -1011,10 +1011,13 @@ function speedToRgb01(speed) {
 
 function particleColor01(speed, alpha) {
   /*
-   * Same visual rule as KOP/SCHISM:
-   * - scalar overlay particles: rgba(235,235,235,alpha)
-   * - current_speed / current_particles: speed colormap particles
+   * MOHID current particles can use speed color.
+   * SWAN particles represent wave direction only, so use a bright fixed color.
    */
+  if (currentModel === "swan") {
+    return [0.92, 0.98, 1.0, alpha];
+  }
+
   if (particlesColoredBySpeed()) {
     const c = speedToRgb01(speed);
     return [c[0], c[1], c[2], alpha];
@@ -1135,8 +1138,16 @@ function buildParticleBuffers() {
         a1 = (0.22 + 0.68 * Math.pow(t1, 1.05)) * fadeFactor * zoomAlphaBoost;
       }
 
-      a0 = Math.min(a0, particlesColoredBySpeed() ? 0.55 : 0.40);
-      a1 = Math.min(a1, particlesColoredBySpeed() ? 0.90 : 0.65);
+      if (currentModel === "swan") {
+        /*
+         * SWAN wave-direction particles need to stay visible on top of Hs/Tp.
+         */
+        a0 = (0.22 + 0.34 * Math.pow(t0, 1.10)) * fadeFactor * zoomAlphaBoost;
+        a1 = (0.38 + 0.54 * Math.pow(t1, 1.00)) * fadeFactor * zoomAlphaBoost;
+      }
+
+      a0 = Math.min(a0, currentModel === "swan" ? 0.70 : (particlesColoredBySpeed() ? 0.55 : 0.40));
+      a1 = Math.min(a1, currentModel === "swan" ? 0.95 : (particlesColoredBySpeed() ? 0.90 : 0.65));
 
       const c0 = particleColor01(speed0, a0);
       const c1 = particleColor01(speed1, a1);
@@ -1188,13 +1199,13 @@ function uploadAndDrawParticles(gl, matrix) {
      * SWAN particles represent wave direction only.
      * Keep them visible separately from thin MOHID current particles.
      */
-    widthPx = 0.82;
+    widthPx = 1.05;
 
-    if (z <= 4.8) widthPx *= 0.75;
-    else if (z <= 5.5) widthPx *= 0.80;
-    else if (z <= 6.5) widthPx *= 0.86;
-    else if (z <= 8.5) widthPx *= 0.92;
-    else widthPx *= 0.95;
+    if (z <= 4.8) widthPx *= 0.95;
+    else if (z <= 5.5) widthPx *= 0.98;
+    else if (z <= 6.5) widthPx *= 1.00;
+    else if (z <= 8.5) widthPx *= 1.02;
+    else widthPx *= 1.05;
   } else {
     widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
 
@@ -1431,7 +1442,8 @@ async function setFrame(i) {
 
   setStatus(
     `${MODEL_DEFS[currentModel].label} ${meta.cycle}\n` +
-    `${currentVar} frame ${currentFrame + 1}/${frameCount()}`
+    `${currentVar} frame ${currentFrame + 1}/${frameCount()}\n` +
+    `particles ${particles.length}`
   );
 
   resetParticles();
