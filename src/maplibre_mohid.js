@@ -787,16 +787,16 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * History length for optimized curved trails.
-   * Low zoom uses longer history, but not excessive.
+   * Low zoom keeps the current tuned length.
+   * High zoom trail length is increased about 3x.
    */
   if (z <= 4.8) return 90;
   if (z <= 5.5) return 80;
   if (z <= 6.5) return 70;
   if (z <= 7.5) return 36;
-  if (z <= 8.5) return 24;
+  if (z <= 8.5) return 72;
 
-  return 18;
+  return 54;
 }
 
 function particleFlowScale() {
@@ -1111,11 +1111,12 @@ function uploadAndDrawParticles(gl, matrix) {
   let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
 
   /*
-   * Keep low-zoom trails visible.
+   * Low zoom: half thickness.
+   * High zoom: keep visible.
    */
-  if (z <= 4.8) widthPx *= 1.10;
-  else if (z <= 5.5) widthPx *= 1.04;
-  else if (z <= 6.5) widthPx *= 0.98;
+  if (z <= 4.8) widthPx *= 0.50;
+  else if (z <= 5.5) widthPx *= 0.50;
+  else if (z <= 6.5) widthPx *= 0.65;
   else if (z >= 8.5) widthPx *= 0.98;
 
   gl.useProgram(GLState.particleProgram);
