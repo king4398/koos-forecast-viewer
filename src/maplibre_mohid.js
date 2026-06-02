@@ -1110,13 +1110,13 @@ function uploadAndDrawParticles(gl, matrix) {
   let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
 
   /*
-   * Low zoom: half thickness.
-   * High zoom: keep visible.
+   * Thin particle dashes across zoom levels.
    */
-  if (z <= 4.8) widthPx *= 0.50;
-  else if (z <= 5.5) widthPx *= 0.50;
-  else if (z <= 6.5) widthPx *= 0.65;
-  else if (z >= 8.5) widthPx *= 0.98;
+  if (z <= 4.8) widthPx *= 0.30;
+  else if (z <= 5.5) widthPx *= 0.36;
+  else if (z <= 6.5) widthPx *= 0.42;
+  else if (z <= 8.5) widthPx *= 0.46;
+  else widthPx *= 0.50;
 
   gl.useProgram(GLState.particleProgram);
 
