@@ -26,6 +26,7 @@
       <option value="salinity">Salinity</option>
       <option value="ssh">Elevation</option>
       <option value="current_speed">Current Speed</option>
+      <option value="current_particles">Current Speed (Particles)</option>
     </select>
 
     <label class="control-label" for="opacity-slider">Opacity</label>
@@ -41,12 +42,6 @@
       <input id="current-overlay-check" type="checkbox" checked />
     </label>
 
-    <label class="control-label" for="particle-density-select">Particles</label>
-    <select id="particle-density-select">
-      <option value="700">Low</option>
-      <option value="1400" selected>Mid</option>
-      <option value="2200">High</option>
-    </select>
 
     <label class="control-label">Base Map</label>
     <div class="radio-row">
@@ -66,7 +61,7 @@
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="src/maplibre_mohid.js?v=particles_perf_tune_01"></script>
+  <script src="src/maplibre_mohid.js?v=current_particles_mode_01"></script>
 
   <div id="ust21-logo-overlay">
     <div id="ust21-logo-title">UST21 수치예보팀</div>

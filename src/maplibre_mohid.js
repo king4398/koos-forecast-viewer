@@ -485,6 +485,20 @@ async function loadGrid() {
   );
 }
 
+function scalarVariableForCurrentView() {
+  if (currentVar === "current_particles") return "current_speed";
+  return currentVar;
+}
+
+function particlesColoredBySpeed() {
+  return currentVar === "current_speed" || currentVar === "current_particles";
+}
+
+function scalarVisibleForCurrentView() {
+  return currentVar !== "current_particles";
+}
+
+
 async function loadFrame(variable, frameIndex) {
   const key = `${variable}:${frameIndex}`;
 
@@ -657,16 +671,21 @@ function vectorAt(lon, lat) {
   return null;
 }
 
+
 function particleTargetCount() {
-  const base = Number(els.particleDensity ? els.particleDensity.value : 1400);
+  /*
+   * Fixed Mid density.
+   * UI particle density selector was removed.
+   */
+  const base = 1400;
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
 
-  if (z <= 5.0) mul = 0.82;
-  else if (z < 9.0) mul = 0.82 + (z - 5.0) * (0.18 / 4.0);
+  if (z <= 5.0) mul = 0.86;
+  else if (z < 9.0) mul = 0.86 + (z - 5.0) * (0.14 / 4.0);
 
-  return Math.max(500, Math.round(base * mul));
+  return Math.max(600, Math.round(base * mul));
 }
 
 function jitterParticlePoint(lon, lat) {
@@ -739,9 +758,10 @@ function resetOneParticle(p) {
     p.lat = q.lat;
   }
 
-  p.age = Math.floor(Math.random() * 80);
-  p.maxAge = 170 + Math.floor(Math.random() * 140);
-  p.fadeAge = Math.floor(Math.random() * 10);
+  p.age = Math.floor(Math.random() * 45);
+  p.maxAge = 115 + Math.floor(Math.random() * 85);
+  p.fadeAge = Math.floor(Math.random() * 8);
+  p.spawnedReplacement = false;
   p.trail = [{ lon: p.lon, lat: p.lat, speed: 0.0 }];
 }
 
@@ -807,9 +827,13 @@ function updateParticles() {
 
   const target = particleTargetCount();
 
-  if (particles.length < target * 0.75 || particles.length > target * 1.25) {
+  if (particles.length < target * 0.75) {
     resetParticles();
     return;
+  }
+
+  if (particles.length > target * 1.20) {
+    particles = particles.slice(particles.length - Math.round(target * 1.05));
   }
 
   const now = performance.now();
@@ -826,6 +850,18 @@ function updateParticles() {
     if (!p || p.age > p.maxAge) {
       resetOneParticle(p);
       continue;
+    }
+
+    /*
+     * Pre-spawn replacement before this particle dies.
+     * This keeps the field continuous without making particles live too long.
+     */
+    if (!p.spawnedReplacement && p.age > p.maxAge - 28 && particles.length < target * 1.12) {
+      const np = {};
+      resetOneParticle(np);
+      np.fadeAge = 0;
+      particles.push(np);
+      p.spawnedReplacement = true;
     }
 
     const vec = vectorAt(p.lon, p.lat);
@@ -1214,8 +1250,8 @@ function makeMohidLayer() {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-      if (GLState.valuesReady) {
-        const vm = meta.variables[currentVar];
+      if (GLState.valuesReady && scalarVisibleForCurrentView()) {
+        const vm = meta.variables[scalarVariableForCurrentView()];
 
         gl.useProgram(GLState.scalarProgram);
 
@@ -1265,8 +1301,10 @@ async function setFrame(i) {
   currentFrame = Math.max(0, Math.min(n - 1, Number(i)));
   els.frameSlider.value = String(currentFrame);
 
+  const scalarVar = scalarVariableForCurrentView();
+
   const [values, u, v] = await Promise.all([
-    loadFrame(currentVar, currentFrame),
+    loadFrame(scalarVar, currentFrame),
     loadFrame("current_u", currentFrame),
     loadFrame("current_v", currentFrame)
   ]);
@@ -1305,8 +1343,11 @@ function fmtLegendNumber(x, digits = 1) {
   return n.toFixed(digits).replace(/\.?0+$/, "");
 }
 
+
+
 function updateLegend() {
-  const v = meta.variables[currentVar];
+  const legendVar = scalarVariableForCurrentView();
+  const v = meta.variables[legendVar];
 
   if (!v) return;
 
@@ -1323,10 +1364,15 @@ function updateLegend() {
   if (v.cmap === "bwr") grad = elevGrad;
 
   const mid = (v.vmin + v.vmax) / 2;
-  const digits = currentVar === "ssh" ? 2 : 1;
+  const digits = legendVar === "ssh" ? 2 : 1;
+
+  const title =
+    currentVar === "current_particles"
+      ? "Current Speed Particles"
+      : v.label;
 
   els.legendBox.innerHTML =
-    `<div class="legend-title">${v.label} [${v.unit}]</div>` +
+    `<div class="legend-title">${title} [${v.unit}]</div>` +
     `<div style="height:14px;width:100%;margin:7px 0 5px;border-radius:4px;background:${grad};"></div>` +
     `<div class="legend-ticks">` +
     `<span>${fmtLegendNumber(v.vmin, digits)}</span>` +
@@ -1493,12 +1539,6 @@ function bindEvents() {
     });
   }
 
-  if (els.particleDensity) {
-    els.particleDensity.addEventListener("change", () => {
-      resetParticles();
-      startParticles();
-    });
-  }
 
   document.querySelectorAll('input[name="basemap"]').forEach(r => {
     r.addEventListener("change", () => setBasemap(r.value));
