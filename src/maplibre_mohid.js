@@ -265,17 +265,42 @@ void main() {
 const PARTICLE_VS = `
 precision highp float;
 
-attribute vec2 a_pos;
+attribute vec2 a_start;
+attribute vec2 a_end;
+attribute float a_side;
+attribute float a_t;
 attribute vec4 a_color;
 
 uniform mat4 u_matrix;
-uniform float u_point_size;
+uniform vec2 u_viewport;
+uniform float u_width;
 
 varying vec4 v_color;
 
 void main() {
-  gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
-  gl_PointSize = u_point_size;
+  vec4 c0 = u_matrix * vec4(a_start, 0.0, 1.0);
+  vec4 c1 = u_matrix * vec4(a_end, 0.0, 1.0);
+
+  vec2 p0 = c0.xy / c0.w;
+  vec2 p1 = c1.xy / c1.w;
+
+  vec2 dir = (p1 - p0) * u_viewport;
+  float len = length(dir);
+
+  if (len < 1.0e-6) {
+    dir = vec2(1.0, 0.0);
+  } else {
+    dir = dir / len;
+  }
+
+  vec2 normal = vec2(-dir.y, dir.x);
+
+  vec2 p = mix(p0, p1, a_t);
+
+  // pixel width -> NDC offset
+  vec2 offset = normal * a_side * u_width / u_viewport * 2.0;
+
+  gl_Position = vec4(p + offset, 0.0, 1.0);
   v_color = a_color;
 }
 `;
@@ -290,18 +315,6 @@ void main() {
 }
 `;
 
-const PARTICLE_POINT_FS = `
-precision mediump float;
-
-varying vec4 v_color;
-
-void main() {
-  vec2 pc = gl_PointCoord - vec2(0.5, 0.5);
-  float d = length(pc);
-  if (d > 0.5) discard;
-  gl_FragColor = v_color;
-}
-`;
 
 function cmapCode(name) {
   const c = String(name || "").toLowerCase();
@@ -758,18 +771,18 @@ function speedToRgb01(speed) {
 }
 
 
+
 function particleColor01(speed, alpha) {
   /*
-   * Follow KOP/SCHISM particle color logic:
-   * - scalar overlay particles: light gray/white rgba(235,235,235,0.55)
-   * - current-speed particles: speed colormap
+   * Same visual rule as KOP/SCHISM:
+   * - scalar overlay particles: rgba(235,235,235,alpha)
+   * - current_speed particles: speed colormap
    */
   if (currentVar === "current_speed") {
     const c = speedToRgb01(speed);
     return [c[0], c[1], c[2], alpha];
   }
 
-  // rgba(235,235,235, alpha) normalized to 0~1.
   return [235.0 / 255.0, 235.0 / 255.0, 235.0 / 255.0, alpha];
 }
 
@@ -785,23 +798,51 @@ function pushParticleVertex(pos, col, q, color) {
 
 
 
+
 function buildParticleBuffers() {
-  const pos = [];
-  const col = [];
+  const starts = [];
+  const ends = [];
+  const sides = [];
+  const ts = [];
+  const colors = [];
 
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * At low zoom, lines become visually tiny.
-   * Use stronger alpha when zoomed out, but keep head/tail natural.
+   * SCHISM-like color/opacity, but rendered as map-fixed WebGL quads.
+   * Lower alpha for scalar overlays; stronger for current_speed.
    */
   let zoomAlphaBoost = 1.00;
-  if (z <= 4.5) zoomAlphaBoost = 2.10;
-  else if (z <= 5.0) zoomAlphaBoost = 1.85;
-  else if (z <= 5.8) zoomAlphaBoost = 1.60;
-  else if (z <= 6.6) zoomAlphaBoost = 1.38;
-  else if (z <= 7.4) zoomAlphaBoost = 1.20;
-  else if (z <= 8.3) zoomAlphaBoost = 1.08;
+  if (z <= 4.5) zoomAlphaBoost = 1.80;
+  else if (z <= 5.0) zoomAlphaBoost = 1.60;
+  else if (z <= 5.8) zoomAlphaBoost = 1.42;
+  else if (z <= 6.6) zoomAlphaBoost = 1.25;
+  else if (z <= 7.4) zoomAlphaBoost = 1.12;
+
+  function pushQuad(q0, q1, c0, c1) {
+    const p0 = mercatorXY(q0.lon, q0.lat);
+    const p1 = mercatorXY(q1.lon, q1.lat);
+
+    // triangle 1: left-start, right-start, right-end
+    // triangle 2: left-start, right-end, left-end
+    const sideVals = [-1, 1, 1, -1, 1, -1];
+    const tVals = [0, 0, 1, 0, 1, 1];
+
+    for (let m = 0; m < 6; m++) {
+      starts.push(p0[0], p0[1]);
+      ends.push(p1[0], p1[1]);
+      sides.push(sideVals[m]);
+      ts.push(tVals[m]);
+
+      const t = tVals[m];
+      colors.push(
+        c0[0] * (1.0 - t) + c1[0] * t,
+        c0[1] * (1.0 - t) + c1[1] * t,
+        c0[2] * (1.0 - t) + c1[2] * t,
+        c0[3] * (1.0 - t) + c1[3] * t
+      );
+    }
+  }
 
   for (const p of particles) {
     if (!p || !p.trail || p.trail.length < 2) continue;
@@ -822,40 +863,40 @@ function buildParticleBuffers() {
 
       const t0 = (k - 1) / Math.max(1, n - 1);
       const t1 = k / Math.max(1, n - 1);
-
-      /*
-       * Smooth tail-to-head alpha gradient.
-       * No artificial dot at the head.
-       */
-      /*
-       * KOP/SCHISM-like particle opacity:
-       * overlay particles are pale and not too strong,
-       * current-speed particles are stronger because they are colored.
-       */
-      let a0 = (0.045 + 0.20 * Math.pow(t0, 1.55)) * fadeFactor * zoomAlphaBoost;
-      let a1 = (0.080 + 0.34 * Math.pow(t1, 1.35)) * fadeFactor * zoomAlphaBoost;
-
-      if (currentVar === "current_speed") {
-        a0 = (0.080 + 0.30 * Math.pow(t0, 1.45)) * fadeFactor * zoomAlphaBoost;
-        a1 = (0.140 + 0.52 * Math.pow(t1, 1.25)) * fadeFactor * zoomAlphaBoost;
-      }
-
-      a0 = Math.min(a0, currentVar === "current_speed" ? 0.58 : 0.36);
-      a1 = Math.min(a1, currentVar === "current_speed" ? 0.78 : 0.55);
-
       const speed = q1.speed || 0.0;
 
-      pushParticleVertex(pos, col, q0, particleColor01(speed, a0));
-      pushParticleVertex(pos, col, q1, particleColor01(speed, a1));
+      /*
+       * Natural head/tail gradient.
+       * No bright head dot. Just gradually stronger toward the head.
+       */
+      let a0 = (0.035 + 0.24 * Math.pow(t0, 1.45)) * fadeFactor * zoomAlphaBoost;
+      let a1 = (0.060 + 0.40 * Math.pow(t1, 1.25)) * fadeFactor * zoomAlphaBoost;
+
+      if (currentVar === "current_speed") {
+        a0 = (0.060 + 0.34 * Math.pow(t0, 1.40)) * fadeFactor * zoomAlphaBoost;
+        a1 = (0.095 + 0.58 * Math.pow(t1, 1.20)) * fadeFactor * zoomAlphaBoost;
+      }
+
+      a0 = Math.min(a0, currentVar === "current_speed" ? 0.55 : 0.34);
+      a1 = Math.min(a1, currentVar === "current_speed" ? 0.78 : 0.50);
+
+      const c0 = particleColor01(speed, a0);
+      const c1 = particleColor01(speed, a1);
+
+      pushQuad(q0, q1, c0, c1);
     }
   }
 
   return {
-    pos: new Float32Array(pos),
-    col: new Float32Array(col),
-    count: pos.length / 2
+    starts: new Float32Array(starts),
+    ends: new Float32Array(ends),
+    sides: new Float32Array(sides),
+    ts: new Float32Array(ts),
+    colors: new Float32Array(colors),
+    count: sides.length
   };
 }
+
 
 function uploadAndDrawParticles(gl, matrix) {
   if (!GLState.ready || !GLState.particleProgram) return;
@@ -872,21 +913,53 @@ function uploadAndDrawParticles(gl, matrix) {
     return;
   }
 
+  const rect = map.getContainer().getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const viewportW = Math.max(1, rect.width * dpr);
+  const viewportH = Math.max(1, rect.height * dpr);
+
+  const z = map ? map.getZoom() : 6.0;
+
+  /*
+   * Quad-line particle width in screen pixels.
+   * Wider than GL_LINES, but still natural.
+   */
+  let widthPx = currentVar === "current_speed" ? 1.65 : 1.35;
+  if (z <= 5.0) widthPx *= 1.15;
+  else if (z >= 8.5) widthPx *= 0.92;
+
   gl.useProgram(GLState.particleProgram);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particlePosBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, b.pos, gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(GLState.particleAPos);
-  gl.vertexAttribPointer(GLState.particleAPos, 2, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleStartBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, b.starts, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(GLState.particleAStart);
+  gl.vertexAttribPointer(GLState.particleAStart, 2, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleEndBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, b.ends, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(GLState.particleAEnd);
+  gl.vertexAttribPointer(GLState.particleAEnd, 2, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleSideBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, b.sides, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(GLState.particleASide);
+  gl.vertexAttribPointer(GLState.particleASide, 1, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleTBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, b.ts, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(GLState.particleAT);
+  gl.vertexAttribPointer(GLState.particleAT, 1, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, GLState.particleColorBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, b.col, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, b.colors, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(GLState.particleAColor);
   gl.vertexAttribPointer(GLState.particleAColor, 4, gl.FLOAT, false, 0, 0);
 
   gl.uniformMatrix4fv(GLState.particleUMatrix, false, matrix);
-  gl.lineWidth(1.0);
-  gl.drawArrays(gl.LINES, 0, b.count);
+  gl.uniform2f(GLState.particleUViewport, viewportW, viewportH);
+  gl.uniform1f(GLState.particleUWidth, widthPx);
+
+  gl.drawArrays(gl.TRIANGLES, 0, b.count);
 
   map.triggerRepaint();
 }
@@ -933,9 +1006,14 @@ function makeMohidLayer() {
       GLState.meshUMatrix = gl.getUniformLocation(GLState.meshProgram, "u_matrix");
       GLState.meshUColor = gl.getUniformLocation(GLState.meshProgram, "u_color");
 
-      GLState.particleAPos = gl.getAttribLocation(GLState.particleProgram, "a_pos");
+      GLState.particleAStart = gl.getAttribLocation(GLState.particleProgram, "a_start");
+      GLState.particleAEnd = gl.getAttribLocation(GLState.particleProgram, "a_end");
+      GLState.particleASide = gl.getAttribLocation(GLState.particleProgram, "a_side");
+      GLState.particleAT = gl.getAttribLocation(GLState.particleProgram, "a_t");
       GLState.particleAColor = gl.getAttribLocation(GLState.particleProgram, "a_color");
       GLState.particleUMatrix = gl.getUniformLocation(GLState.particleProgram, "u_matrix");
+      GLState.particleUViewport = gl.getUniformLocation(GLState.particleProgram, "u_viewport");
+      GLState.particleUWidth = gl.getUniformLocation(GLState.particleProgram, "u_width");
       GLState.particleUPointSize = gl.getUniformLocation(GLState.particleProgram, "u_point_size");
 
       GLState.particleHeadAPos = gl.getAttribLocation(GLState.particlePointProgram, "a_pos");
@@ -959,7 +1037,10 @@ function makeMohidLayer() {
       gl.bindBuffer(gl.ARRAY_BUFFER, GLState.meshPosBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, grid.edgePositions, gl.STATIC_DRAW);
 
-      GLState.particlePosBuffer = gl.createBuffer();
+      GLState.particleStartBuffer = gl.createBuffer();
+      GLState.particleEndBuffer = gl.createBuffer();
+      GLState.particleSideBuffer = gl.createBuffer();
+      GLState.particleTBuffer = gl.createBuffer();
       GLState.particleColorBuffer = gl.createBuffer();
       GLState.particleHeadPosBuffer = gl.createBuffer();
       GLState.particleHeadColorBuffer = gl.createBuffer();
