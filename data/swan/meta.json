@@ -1,0 +1,323 @@
+{
+  "model": "swan",
+  "cycle": "2026051212",
+  "forecast_start_utc": "2026-05-12T12:00:00Z",
+  "forecast_end_utc": "2026-05-13T12:00:00Z",
+  "grid": {
+    "nx": 720,
+    "ny": 712,
+    "corner_nx": 721,
+    "corner_ny": 713,
+    "n": 512640,
+    "lon_min": 117.5,
+    "lon_max": 132.5,
+    "lat_min": 28.666669845581055,
+    "lat_max": 43.5,
+    "lon_file": "lon.bin",
+    "lat_file": "lat.bin",
+    "mask_file": "mask.bin",
+    "lon_corner_file": "lon_corner.bin",
+    "lat_corner_file": "lat_corner.bin",
+    "particle_lookup_cell_file": "particle_lookup_cell.bin",
+    "particle_lookup_nx": 720,
+    "particle_lookup_ny": 712
+  },
+  "variables": {
+    "hs": {
+      "label": "Significant Wave Height",
+      "unit": "m",
+      "vmin": 0.0,
+      "vmax": 5.0,
+      "cmap": "turbo"
+    },
+    "tp": {
+      "label": "Peak Wave Period",
+      "unit": "s",
+      "vmin": 1.0,
+      "vmax": 10.0,
+      "cmap": "viridis"
+    }
+  },
+  "particles": {
+    "kind": "wave_direction",
+    "color_by_speed": false,
+    "direction_convention": "to"
+  },
+  "frames": [
+    {
+      "index": 0,
+      "time_utc": "2026-05-12T12:00:00Z",
+      "label": "2026-05-12 12:00 UTC",
+      "files": {
+        "hs": "hs_0000.bin",
+        "tp": "tp_0000.bin",
+        "current_u": "wave_u_0000.bin",
+        "current_v": "wave_v_0000.bin"
+      }
+    },
+    {
+      "index": 1,
+      "time_utc": "2026-05-12T13:00:00Z",
+      "label": "2026-05-12 13:00 UTC",
+      "files": {
+        "hs": "hs_0001.bin",
+        "tp": "tp_0001.bin",
+        "current_u": "wave_u_0001.bin",
+        "current_v": "wave_v_0001.bin"
+      }
+    },
+    {
+      "index": 2,
+      "time_utc": "2026-05-12T14:00:00Z",
+      "label": "2026-05-12 14:00 UTC",
+      "files": {
+        "hs": "hs_0002.bin",
+        "tp": "tp_0002.bin",
+        "current_u": "wave_u_0002.bin",
+        "current_v": "wave_v_0002.bin"
+      }
+    },
+    {
+      "index": 3,
+      "time_utc": "2026-05-12T15:00:00Z",
+      "label": "2026-05-12 15:00 UTC",
+      "files": {
+        "hs": "hs_0003.bin",
+        "tp": "tp_0003.bin",
+        "current_u": "wave_u_0003.bin",
+        "current_v": "wave_v_0003.bin"
+      }
+    },
+    {
+      "index": 4,
+      "time_utc": "2026-05-12T16:00:00Z",
+      "label": "2026-05-12 16:00 UTC",
+      "files": {
+        "hs": "hs_0004.bin",
+        "tp": "tp_0004.bin",
+        "current_u": "wave_u_0004.bin",
+        "current_v": "wave_v_0004.bin"
+      }
+    },
+    {
+      "index": 5,
+      "time_utc": "2026-05-12T17:00:00Z",
+      "label": "2026-05-12 17:00 UTC",
+      "files": {
+        "hs": "hs_0005.bin",
+        "tp": "tp_0005.bin",
+        "current_u": "wave_u_0005.bin",
+        "current_v": "wave_v_0005.bin"
+      }
+    },
+    {
+      "index": 6,
+      "time_utc": "2026-05-12T18:00:00Z",
+      "label": "2026-05-12 18:00 UTC",
+      "files": {
+        "hs": "hs_0006.bin",
+        "tp": "tp_0006.bin",
+        "current_u": "wave_u_0006.bin",
+        "current_v": "wave_v_0006.bin"
+      }
+    },
+    {
+      "index": 7,
+      "time_utc": "2026-05-12T19:00:00Z",
+      "label": "2026-05-12 19:00 UTC",
+      "files": {
+        "hs": "hs_0007.bin",
+        "tp": "tp_0007.bin",
+        "current_u": "wave_u_0007.bin",
+        "current_v": "wave_v_0007.bin"
+      }
+    },
+    {
+      "index": 8,
+      "time_utc": "2026-05-12T20:00:00Z",
+      "label": "2026-05-12 20:00 UTC",
+      "files": {
+        "hs": "hs_0008.bin",
+        "tp": "tp_0008.bin",
+        "current_u": "wave_u_0008.bin",
+        "current_v": "wave_v_0008.bin"
+      }
+    },
+    {
+      "index": 9,
+      "time_utc": "2026-05-12T21:00:00Z",
+      "label": "2026-05-12 21:00 UTC",
+      "files": {
+        "hs": "hs_0009.bin",
+        "tp": "tp_0009.bin",
+        "current_u": "wave_u_0009.bin",
+        "current_v": "wave_v_0009.bin"
+      }
+    },
+    {
+      "index": 10,
+      "time_utc": "2026-05-12T22:00:00Z",
+      "label": "2026-05-12 22:00 UTC",
+      "files": {
+        "hs": "hs_0010.bin",
+        "tp": "tp_0010.bin",
+        "current_u": "wave_u_0010.bin",
+        "current_v": "wave_v_0010.bin"
+      }
+    },
+    {
+      "index": 11,
+      "time_utc": "2026-05-12T23:00:00Z",
+      "label": "2026-05-12 23:00 UTC",
+      "files": {
+        "hs": "hs_0011.bin",
+        "tp": "tp_0011.bin",
+        "current_u": "wave_u_0011.bin",
+        "current_v": "wave_v_0011.bin"
+      }
+    },
+    {
+      "index": 12,
+      "time_utc": "2026-05-13T00:00:00Z",
+      "label": "2026-05-13 00:00 UTC",
+      "files": {
+        "hs": "hs_0012.bin",
+        "tp": "tp_0012.bin",
+        "current_u": "wave_u_0012.bin",
+        "current_v": "wave_v_0012.bin"
+      }
+    },
+    {
+      "index": 13,
+      "time_utc": "2026-05-13T01:00:00Z",
+      "label": "2026-05-13 01:00 UTC",
+      "files": {
+        "hs": "hs_0013.bin",
+        "tp": "tp_0013.bin",
+        "current_u": "wave_u_0013.bin",
+        "current_v": "wave_v_0013.bin"
+      }
+    },
+    {
+      "index": 14,
+      "time_utc": "2026-05-13T02:00:00Z",
+      "label": "2026-05-13 02:00 UTC",
+      "files": {
+        "hs": "hs_0014.bin",
+        "tp": "tp_0014.bin",
+        "current_u": "wave_u_0014.bin",
+        "current_v": "wave_v_0014.bin"
+      }
+    },
+    {
+      "index": 15,
+      "time_utc": "2026-05-13T03:00:00Z",
+      "label": "2026-05-13 03:00 UTC",
+      "files": {
+        "hs": "hs_0015.bin",
+        "tp": "tp_0015.bin",
+        "current_u": "wave_u_0015.bin",
+        "current_v": "wave_v_0015.bin"
+      }
+    },
+    {
+      "index": 16,
+      "time_utc": "2026-05-13T04:00:00Z",
+      "label": "2026-05-13 04:00 UTC",
+      "files": {
+        "hs": "hs_0016.bin",
+        "tp": "tp_0016.bin",
+        "current_u": "wave_u_0016.bin",
+        "current_v": "wave_v_0016.bin"
+      }
+    },
+    {
+      "index": 17,
+      "time_utc": "2026-05-13T05:00:00Z",
+      "label": "2026-05-13 05:00 UTC",
+      "files": {
+        "hs": "hs_0017.bin",
+        "tp": "tp_0017.bin",
+        "current_u": "wave_u_0017.bin",
+        "current_v": "wave_v_0017.bin"
+      }
+    },
+    {
+      "index": 18,
+      "time_utc": "2026-05-13T06:00:00Z",
+      "label": "2026-05-13 06:00 UTC",
+      "files": {
+        "hs": "hs_0018.bin",
+        "tp": "tp_0018.bin",
+        "current_u": "wave_u_0018.bin",
+        "current_v": "wave_v_0018.bin"
+      }
+    },
+    {
+      "index": 19,
+      "time_utc": "2026-05-13T07:00:00Z",
+      "label": "2026-05-13 07:00 UTC",
+      "files": {
+        "hs": "hs_0019.bin",
+        "tp": "tp_0019.bin",
+        "current_u": "wave_u_0019.bin",
+        "current_v": "wave_v_0019.bin"
+      }
+    },
+    {
+      "index": 20,
+      "time_utc": "2026-05-13T08:00:00Z",
+      "label": "2026-05-13 08:00 UTC",
+      "files": {
+        "hs": "hs_0020.bin",
+        "tp": "tp_0020.bin",
+        "current_u": "wave_u_0020.bin",
+        "current_v": "wave_v_0020.bin"
+      }
+    },
+    {
+      "index": 21,
+      "time_utc": "2026-05-13T09:00:00Z",
+      "label": "2026-05-13 09:00 UTC",
+      "files": {
+        "hs": "hs_0021.bin",
+        "tp": "tp_0021.bin",
+        "current_u": "wave_u_0021.bin",
+        "current_v": "wave_v_0021.bin"
+      }
+    },
+    {
+      "index": 22,
+      "time_utc": "2026-05-13T10:00:00Z",
+      "label": "2026-05-13 10:00 UTC",
+      "files": {
+        "hs": "hs_0022.bin",
+        "tp": "tp_0022.bin",
+        "current_u": "wave_u_0022.bin",
+        "current_v": "wave_v_0022.bin"
+      }
+    },
+    {
+      "index": 23,
+      "time_utc": "2026-05-13T11:00:00Z",
+      "label": "2026-05-13 11:00 UTC",
+      "files": {
+        "hs": "hs_0023.bin",
+        "tp": "tp_0023.bin",
+        "current_u": "wave_u_0023.bin",
+        "current_v": "wave_v_0023.bin"
+      }
+    },
+    {
+      "index": 24,
+      "time_utc": "2026-05-13T12:00:00Z",
+      "label": "2026-05-13 12:00 UTC",
+      "files": {
+        "hs": "hs_0024.bin",
+        "tp": "tp_0024.bin",
+        "current_u": "wave_u_0024.bin",
+        "current_v": "wave_v_0024.bin"
+      }
+    }
+  ]
+}

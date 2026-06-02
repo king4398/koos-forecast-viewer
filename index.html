@@ -16,10 +16,15 @@
 
   <div id="top-panel">
     <div class="title">KOOS Forecast Viewer</div>
-    <div class="subtitle">MOHID Surface Forecast</div>
   </div>
 
   <div id="layer-panel">
+    <label class="control-label" for="model-select">Model</label>
+    <select id="model-select">
+      <option value="mohid">MOHID</option>
+      <option value="swan">SWAN</option>
+    </select>
+
     <label class="control-label" for="var-select">Variable</label>
     <select id="var-select">
       <option value="temperature">Temperature</option>
@@ -61,7 +66,7 @@
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="src/maplibre_mohid.js?v=particle_color_smooth_01"></script>
+  <script src="src/maplibre_mohid.js?v=swan_model_01"></script>
 
   <div id="ust21-logo-overlay">
     <div id="ust21-logo-title">UST21 수치예보팀</div>

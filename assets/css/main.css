@@ -315,3 +315,16 @@ select option {
 #raster-canvas {
   pointer-events: none;
 }
+
+#top-panel .subtitle {
+  display: none;
+}
+
+#top-panel {
+  padding: 10px 14px;
+}
+
+#top-panel .title {
+  font-size: 17px;
+  line-height: 1.2;
+}

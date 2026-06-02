@@ -1,8 +1,37 @@
 "use strict";
 
-const DATA_ROOT = "data/mohid/";
+const MODEL_DEFS = {
+  mohid: {
+    label: "MOHID",
+    dataRoot: "data/mohid/",
+    defaultVar: "temperature",
+    variables: [
+      ["temperature", "Temperature"],
+      ["salinity", "Salinity"],
+      ["ssh", "Elevation"],
+      ["current_speed", "Current Speed"],
+      ["current_particles", "Current Speed (Particles)"]
+    ]
+  },
+  swan: {
+    label: "SWAN",
+    dataRoot: "data/swan/",
+    defaultVar: "hs",
+    variables: [
+      ["hs", "Significant Wave Height"],
+      ["tp", "Peak Wave Period"]
+    ]
+  }
+};
+
+const urlParams = new URLSearchParams(window.location.search);
+let currentModel = urlParams.get("model") || "mohid";
+if (!MODEL_DEFS[currentModel]) currentModel = "mohid";
+
+let DATA_ROOT = MODEL_DEFS[currentModel].dataRoot;
 
 const els = {
+  modelSelect: document.getElementById("model-select"),
   varSelect: document.getElementById("var-select"),
   opacitySlider: document.getElementById("opacity-slider"),
   playBtn: document.getElementById("play-btn"),
@@ -19,7 +48,7 @@ let map = null;
 let meta = null;
 let grid = null;
 
-let currentVar = "temperature";
+let currentVar = MODEL_DEFS[currentModel].defaultVar;
 let currentFrame = 0;
 let playTimer = null;
 
@@ -71,6 +100,36 @@ const GLState = {
   ready: false,
   valuesReady: false
 };
+
+function configureModelControls() {
+  const def = MODEL_DEFS[currentModel];
+
+  DATA_ROOT = def.dataRoot;
+  currentVar = def.defaultVar;
+
+  if (els.modelSelect) {
+    els.modelSelect.value = currentModel;
+  }
+
+  if (els.varSelect) {
+    els.varSelect.innerHTML = "";
+    for (const [value, label] of def.variables) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      els.varSelect.appendChild(opt);
+    }
+    els.varSelect.value = currentVar;
+  }
+
+  const title = document.querySelector("#top-panel .title");
+  if (title) title.textContent = "KOOS Forecast Viewer";
+}
+
+function isSwanModel() {
+  return currentModel === "swan";
+}
+
 
 function setStatus(msg) {
   if (els.statusLine) els.statusLine.textContent = msg;
@@ -355,6 +414,8 @@ function cmapCode(name) {
 
   if (c === "bwr" || c === "rdbu" || c === "bluewhitered") return 1;
   if (c === "ylgnbu") return 2;
+  if (c === "viridis") return 3;
+  if (c === "turbo") return 0;
 
   return 0;
 }
@@ -486,16 +547,17 @@ async function loadGrid() {
 }
 
 function scalarVariableForCurrentView() {
-  if (currentVar === "current_particles") return "current_speed";
+  if (currentModel === "mohid" && currentVar === "current_particles") return "current_speed";
   return currentVar;
 }
 
 function particlesColoredBySpeed() {
-  return currentVar === "current_speed" || currentVar === "current_particles";
+  return currentModel === "mohid" &&
+    (currentVar === "current_speed" || currentVar === "current_particles");
 }
 
 function scalarVisibleForCurrentView() {
-  return currentVar !== "current_particles";
+  return !(currentModel === "mohid" && currentVar === "current_particles");
 }
 
 
@@ -1524,6 +1586,15 @@ function initMap() {
 }
 
 function bindEvents() {
+  if (els.modelSelect) {
+    els.modelSelect.addEventListener("change", () => {
+      const model = els.modelSelect.value || "mohid";
+      const url = new URL(window.location.href);
+      url.searchParams.set("model", model);
+      window.location.href = url.toString();
+    });
+  }
+
   els.varSelect.addEventListener("change", () => {
     currentVar = els.varSelect.value;
     setFrame(currentFrame);
