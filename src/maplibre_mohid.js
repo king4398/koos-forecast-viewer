@@ -803,12 +803,12 @@ function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Calm advection.
-   * Keep low zoom from looking like fast straight streaks.
+   * Low zoom speed x2.
+   * High zoom remains unchanged.
    */
-  if (z <= 4.8) return 0.0028;
-  if (z <= 5.4) return 0.0030;
-  if (z <= 6.2) return 0.0033;
+  if (z <= 4.8) return 0.0056;
+  if (z <= 5.4) return 0.0060;
+  if (z <= 6.2) return 0.0066;
   if (z <= 7.0) return 0.0037;
   if (z <= 8.0) return 0.0040;
 
