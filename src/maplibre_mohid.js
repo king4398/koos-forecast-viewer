@@ -220,7 +220,7 @@ async function loadGrid() {
   const latCorner = await fetchFloat32(DATA_ROOT + meta.grid.lat_corner_file, nc);
 
   const triPositions = [];
-  const cellIndexForVertex = [];
+  const cornerIndexForVertex = [];
   const edgePositions = [];
 
   function cornerIndex(j, i) {
@@ -266,13 +266,13 @@ async function loadGrid() {
 
       validCells += 1;
 
-      pushCorner(triPositions, c00); cellIndexForVertex.push(cell);
-      pushCorner(triPositions, c10); cellIndexForVertex.push(cell);
-      pushCorner(triPositions, c11); cellIndexForVertex.push(cell);
+      pushCorner(triPositions, c00); cornerIndexForVertex.push(c00);
+      pushCorner(triPositions, c10); cornerIndexForVertex.push(c10);
+      pushCorner(triPositions, c11); cornerIndexForVertex.push(c11);
 
-      pushCorner(triPositions, c00); cellIndexForVertex.push(cell);
-      pushCorner(triPositions, c11); cellIndexForVertex.push(cell);
-      pushCorner(triPositions, c01); cellIndexForVertex.push(cell);
+      pushCorner(triPositions, c00); cornerIndexForVertex.push(c00);
+      pushCorner(triPositions, c11); cornerIndexForVertex.push(c11);
+      pushCorner(triPositions, c01); cornerIndexForVertex.push(c01);
 
       pushCorner(edgePositions, c00); pushCorner(edgePositions, c10);
       pushCorner(edgePositions, c10); pushCorner(edgePositions, c11);
@@ -289,7 +289,7 @@ async function loadGrid() {
     n,
     validCells,
     triPositions: new Float32Array(triPositions),
-    cellIndexForVertex: new Uint32Array(cellIndexForVertex),
+    cornerIndexForVertex: new Uint32Array(cornerIndexForVertex),
     edgePositions: new Float32Array(edgePositions)
   };
 
@@ -311,11 +311,55 @@ async function loadFrame(variable, frameIndex) {
   return arr;
 }
 
-function buildVertexValues(values) {
-  const out = new Float32Array(grid.cellIndexForVertex.length);
-  for (let k = 0; k < out.length; k++) {
-    out[k] = values[grid.cellIndexForVertex[k]];
+
+function cellValuesToCornerValues(values) {
+  const nx = grid.nx;
+  const ny = grid.ny;
+  const cnx = grid.cnx;
+  const cny = grid.cny;
+
+  const sum = new Float32Array(cnx * cny);
+  const count = new Float32Array(cnx * cny);
+
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const cell = j * nx + i;
+      const v = values[cell];
+
+      if (!Number.isFinite(v)) continue;
+
+      const c00 = j * cnx + i;
+      const c10 = j * cnx + (i + 1);
+      const c11 = (j + 1) * cnx + (i + 1);
+      const c01 = (j + 1) * cnx + i;
+
+      sum[c00] += v; count[c00] += 1.0;
+      sum[c10] += v; count[c10] += 1.0;
+      sum[c11] += v; count[c11] += 1.0;
+      sum[c01] += v; count[c01] += 1.0;
+    }
   }
+
+  const cornerValues = new Float32Array(cnx * cny);
+  for (let k = 0; k < cornerValues.length; k++) {
+    if (count[k] > 0.0) {
+      cornerValues[k] = sum[k] / count[k];
+    } else {
+      cornerValues[k] = NaN;
+    }
+  }
+
+  return cornerValues;
+}
+
+function buildVertexValues(values) {
+  const cornerValues = cellValuesToCornerValues(values);
+  const out = new Float32Array(grid.cornerIndexForVertex.length);
+
+  for (let k = 0; k < out.length; k++) {
+    out[k] = cornerValues[grid.cornerIndexForVertex[k]];
+  }
+
   return out;
 }
 
@@ -348,7 +392,7 @@ function makeMohidLayer() {
 
       GLState.valBuffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, GLState.valBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, grid.cellIndexForVertex.length * 4, gl.DYNAMIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, grid.cornerIndexForVertex.length * 4, gl.DYNAMIC_DRAW);
 
       GLState.meshPosBuffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, GLState.meshPosBuffer);
