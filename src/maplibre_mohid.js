@@ -1,5 +1,7 @@
 "use strict";
 
+const APP_DATA_VERSION = "swan_stride2_particle_debug_01";
+
 const MODEL_DEFS = {
   mohid: {
     label: "MOHID",
@@ -61,6 +63,7 @@ let currentV = null;
 let particles = [];
 let particleRunning = false;
 let lastParticleUpdateMs = 0;
+let particleDrawVertexCount = 0;
 
 const GLState = {
   gl: null,
@@ -156,7 +159,7 @@ async function fetchJson(url) {
 
 async function fetchFloat32(url, expectedLen = null) {
   const sep = url.includes("?") ? "&" : "?";
-  const res = await fetch(url + sep + "v=" + Date.now(), { cache: "no-store" });
+  const res = await fetch(url + sep + "v=" + APP_DATA_VERSION, { cache: "force-cache" });
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   const buf = await res.arrayBuffer();
   const arr = new Float32Array(buf);
@@ -168,7 +171,7 @@ async function fetchFloat32(url, expectedLen = null) {
 
 async function fetchInt32(url, expectedLen = null) {
   const sep = url.includes("?") ? "&" : "?";
-  const res = await fetch(url + sep + "v=" + Date.now(), { cache: "no-store" });
+  const res = await fetch(url + sep + "v=" + APP_DATA_VERSION, { cache: "force-cache" });
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   const buf = await res.arrayBuffer();
   const arr = new Int32Array(buf);
@@ -1175,6 +1178,7 @@ function uploadAndDrawParticles(gl, matrix) {
   updateParticles();
 
   const b = buildParticleBuffers();
+  particleDrawVertexCount = b.count;
 
   if (b.count <= 0) {
     map.triggerRepaint();
@@ -1440,14 +1444,16 @@ async function setFrame(i) {
   updateTimeLabel();
   updateLegend();
 
-  setStatus(
-    `${MODEL_DEFS[currentModel].label} ${meta.cycle}\n` +
-    `${currentVar} frame ${currentFrame + 1}/${frameCount()}\n` +
-    `particles ${particles.length}`
-  );
-
   resetParticles();
   startParticles();
+
+  setStatus(
+    `${MODEL_DEFS[currentModel].label} ${meta.cycle}
+` +
+    `${currentVar} frame ${currentFrame + 1}/${frameCount()}
+` +
+    `particles ${particles.length} / vertices ${particleDrawVertexCount}`
+  );
 
   map.triggerRepaint();
 }
@@ -1720,9 +1726,13 @@ async function boot() {
       await setFrame(0);
 
       setStatus(
-        `Ready\n` +
-        `${MODEL_DEFS[currentModel].label} ${meta.cycle}\n` +
-        `${grid.validCells} cells`
+        `Ready
+` +
+        `${MODEL_DEFS[currentModel].label} ${meta.cycle}
+` +
+        `${grid.validCells} cells
+` +
+        `particles ${particles.length} / vertices ${particleDrawVertexCount}`
       );
     });
   } catch (err) {
