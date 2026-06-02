@@ -2,30 +2,26 @@
 
 const DATA_ROOT = "data/mohid/";
 
-const CONFIG = {
-  overlayParticleColor: "rgba(235,235,235,0.55)"
-};
-
 const els = {
-  canvas: document.getElementById("raster-canvas"),
   varSelect: document.getElementById("var-select"),
   opacitySlider: document.getElementById("opacity-slider"),
   playBtn: document.getElementById("play-btn"),
   frameSlider: document.getElementById("frame-slider"),
   timeLabel: document.getElementById("time-label"),
   statusLine: document.getElementById("status-line"),
-  legendBox: document.getElementById("legend-box")
+  legendBox: document.getElementById("legend-box"),
+  meshOverlay: document.getElementById("mesh-overlay-check")
 };
 
-let map;
-let meta;
+let map = null;
+let meta = null;
 let grid = null;
 let currentVar = "temperature";
 let currentFrame = 0;
 let timer = null;
 let scalarCache = new Map();
 
-let glState = {
+const GLState = {
   gl: null,
   scalarProgram: null,
   meshProgram: null,
@@ -44,7 +40,8 @@ let glState = {
   meshUColor: null,
   vertexCount: 0,
   meshVertexCount: 0,
-  ready: false
+  ready: false,
+  valuesReady: false
 };
 
 function setStatus(msg) {
@@ -108,7 +105,7 @@ attribute vec2 a_pos;
 attribute float a_value;
 uniform mat4 u_matrix;
 varying float v_value;
-void main(){
+void main() {
   gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
   v_value = a_value;
 }
@@ -122,7 +119,9 @@ uniform float u_vmax;
 uniform float u_opacity;
 uniform int u_cmap;
 
-vec3 mix3(vec3 a, vec3 b, float t){ return a*(1.0-t)+b*t; }
+vec3 mix3(vec3 a, vec3 b, float t) {
+  return a * (1.0 - t) + b * t;
+}
 
 vec3 smoothJet(float t) {
   t = clamp(t, 0.0, 1.0);
@@ -163,18 +162,18 @@ vec3 blueWhiteRed(float t) {
   return mix3(white, red, (t - 0.5) / 0.5);
 }
 
-void main(){
-  if (!((v_value > -3.402823e38) && (v_value < 3.402823e38))) discard;
+void main() {
+  if (v_value != v_value) discard;
 
-  float t = (v_value - u_vmin) / (u_vmax - u_vmin);
-  t = clamp(t, 0.0, 1.0);
+  float den = max(abs(u_vmax - u_vmin), 1e-12);
+  float t = clamp((v_value - u_vmin) / den, 0.0, 1.0);
 
-  vec3 col;
-  if (u_cmap == 1) col = blueWhiteRed(t);
-  else if (u_cmap == 2) col = ylgnbu(t);
-  else col = smoothJet(t);
+  vec3 c;
+  if (u_cmap == 1) c = blueWhiteRed(t);
+  else if (u_cmap == 2) c = ylgnbu(t);
+  else c = smoothJet(t);
 
-  gl_FragColor = vec4(col, u_opacity);
+  gl_FragColor = vec4(c, u_opacity);
 }
 `;
 
@@ -182,7 +181,7 @@ const MESH_VS = `
 precision highp float;
 attribute vec2 a_pos;
 uniform mat4 u_matrix;
-void main(){
+void main() {
   gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
 }
 `;
@@ -190,7 +189,7 @@ void main(){
 const MESH_FS = `
 precision mediump float;
 uniform vec4 u_color;
-void main(){
+void main() {
   gl_FragColor = u_color;
 }
 `;
@@ -202,11 +201,9 @@ function cmapCode(name) {
   return 0;
 }
 
-function mercatorProject(lon, lat) {
-  const x = (lon + 180.0) / 360.0;
-  const sin = Math.sin((lat * Math.PI) / 180.0);
-  const y = 0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI);
-  return [x, y];
+function mercatorXY(lon, lat) {
+  const mc = maplibregl.MercatorCoordinate.fromLngLat({ lng: lon, lat: lat });
+  return [mc.x, mc.y];
 }
 
 async function loadGrid() {
@@ -224,7 +221,6 @@ async function loadGrid() {
 
   const triPositions = [];
   const cellIndexForVertex = [];
-
   const edgePositions = [];
 
   function cornerIndex(j, i) {
@@ -234,9 +230,15 @@ async function loadGrid() {
   function pushCorner(out, ci) {
     const lon = lonCorner[ci];
     const lat = latCorner[ci];
-    const p = mercatorProject(lon, lat);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      out.push(0, 0);
+      return;
+    }
+    const p = mercatorXY(lon, lat);
     out.push(p[0], p[1]);
   }
+
+  let validCells = 0;
 
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
@@ -248,7 +250,22 @@ async function loadGrid() {
       const c11 = cornerIndex(j + 1, i + 1);
       const c01 = cornerIndex(j + 1, i);
 
-      // scalar triangles: c00-c10-c11 and c00-c11-c01
+      const lon00 = lonCorner[c00], lat00 = latCorner[c00];
+      const lon10 = lonCorner[c10], lat10 = latCorner[c10];
+      const lon11 = lonCorner[c11], lat11 = latCorner[c11];
+      const lon01 = lonCorner[c01], lat01 = latCorner[c01];
+
+      if (
+        !Number.isFinite(lon00) || !Number.isFinite(lat00) ||
+        !Number.isFinite(lon10) || !Number.isFinite(lat10) ||
+        !Number.isFinite(lon11) || !Number.isFinite(lat11) ||
+        !Number.isFinite(lon01) || !Number.isFinite(lat01)
+      ) {
+        continue;
+      }
+
+      validCells += 1;
+
       pushCorner(triPositions, c00); cellIndexForVertex.push(cell);
       pushCorner(triPositions, c10); cellIndexForVertex.push(cell);
       pushCorner(triPositions, c11); cellIndexForVertex.push(cell);
@@ -257,7 +274,6 @@ async function loadGrid() {
       pushCorner(triPositions, c11); cellIndexForVertex.push(cell);
       pushCorner(triPositions, c01); cellIndexForVertex.push(cell);
 
-      // mesh overlay edges
       pushCorner(edgePositions, c00); pushCorner(edgePositions, c10);
       pushCorner(edgePositions, c10); pushCorner(edgePositions, c11);
       pushCorner(edgePositions, c11); pushCorner(edgePositions, c01);
@@ -266,14 +282,22 @@ async function loadGrid() {
   }
 
   grid = {
-    nx, ny, cnx, cny, n,
-    mask,
+    nx,
+    ny,
+    cnx,
+    cny,
+    n,
+    validCells,
     triPositions: new Float32Array(triPositions),
     cellIndexForVertex: new Uint32Array(cellIndexForVertex),
     edgePositions: new Float32Array(edgePositions)
   };
 
-  initWebGLBuffers();
+  setStatus(
+    `Grid loaded\n` +
+    `cells: ${validCells}\n` +
+    `vertices: ${grid.triPositions.length / 2}`
+  );
 }
 
 async function loadFrame(variable, frameIndex) {
@@ -287,82 +311,6 @@ async function loadFrame(variable, frameIndex) {
   return arr;
 }
 
-function resizeCanvas() {
-  const dpr = window.devicePixelRatio || 1;
-  els.canvas.width = Math.round(window.innerWidth * dpr);
-  els.canvas.height = Math.round(window.innerHeight * dpr);
-  els.canvas.style.width = window.innerWidth + "px";
-  els.canvas.style.height = window.innerHeight + "px";
-  drawCurrentFrame();
-}
-
-function makeMatrix() {
-  const canvas = els.canvas;
-  const w = canvas.width;
-  const h = canvas.height;
-
-  const nw = map.project([-180, 85.05112878]);
-  const se = map.project([180, -85.05112878]);
-
-  const sx = 2.0 / (se.x - nw.x);
-  const sy = -2.0 / (se.y - nw.y);
-  const tx = -1.0 - nw.x * sx;
-  const ty = 1.0 - nw.y * sy;
-
-  return new Float32Array([
-    sx, 0, 0, 0,
-    0, sy, 0, 0,
-    0, 0, 1, 0,
-    tx, ty, 0, 1
-  ]);
-}
-
-function initWebGLBuffers() {
-  const canvas = els.canvas;
-  const gl = canvas.getContext("webgl", {
-    alpha: true,
-    antialias: true,
-    preserveDrawingBuffer: false
-  });
-
-  if (!gl) throw new Error("WebGL not supported");
-
-  const scalarProgram = makeProgram(gl, SCALAR_VS, SCALAR_FS);
-  const meshProgram = makeProgram(gl, MESH_VS, MESH_FS);
-
-  const posBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, grid.triPositions, gl.STATIC_DRAW);
-
-  const valBuffer = gl.createBuffer();
-
-  const meshPosBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, meshPosBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, grid.edgePositions, gl.STATIC_DRAW);
-
-  glState = {
-    gl,
-    scalarProgram,
-    meshProgram,
-    posBuffer,
-    valBuffer,
-    meshPosBuffer,
-    aPos: gl.getAttribLocation(scalarProgram, "a_pos"),
-    aVal: gl.getAttribLocation(scalarProgram, "a_value"),
-    uMatrix: gl.getUniformLocation(scalarProgram, "u_matrix"),
-    uVmin: gl.getUniformLocation(scalarProgram, "u_vmin"),
-    uVmax: gl.getUniformLocation(scalarProgram, "u_vmax"),
-    uOpacity: gl.getUniformLocation(scalarProgram, "u_opacity"),
-    uCmap: gl.getUniformLocation(scalarProgram, "u_cmap"),
-    meshAPos: gl.getAttribLocation(meshProgram, "a_pos"),
-    meshUMatrix: gl.getUniformLocation(meshProgram, "u_matrix"),
-    meshUColor: gl.getUniformLocation(meshProgram, "u_color"),
-    vertexCount: grid.triPositions.length / 2,
-    meshVertexCount: grid.edgePositions.length / 2,
-    ready: true
-  };
-}
-
 function buildVertexValues(values) {
   const out = new Float32Array(grid.cellIndexForVertex.length);
   for (let k = 0; k < out.length; k++) {
@@ -371,63 +319,113 @@ function buildVertexValues(values) {
   return out;
 }
 
-async function drawCurrentFrame() {
-  if (!meta || !grid || !map || !glState.ready) return;
+function makeMohidLayer() {
+  return {
+    id: "mohid-custom-layer",
+    type: "custom",
+    renderingMode: "2d",
 
-  try {
-    const values = await loadFrame(currentVar, currentFrame);
-    const vertexValues = buildVertexValues(values);
+    onAdd: function(m, gl) {
+      GLState.gl = gl;
+      GLState.scalarProgram = makeProgram(gl, SCALAR_VS, SCALAR_FS);
+      GLState.meshProgram = makeProgram(gl, MESH_VS, MESH_FS);
 
-    const gl = glState.gl;
-    const matrix = makeMatrix();
+      GLState.aPos = gl.getAttribLocation(GLState.scalarProgram, "a_pos");
+      GLState.aVal = gl.getAttribLocation(GLState.scalarProgram, "a_value");
+      GLState.uMatrix = gl.getUniformLocation(GLState.scalarProgram, "u_matrix");
+      GLState.uVmin = gl.getUniformLocation(GLState.scalarProgram, "u_vmin");
+      GLState.uVmax = gl.getUniformLocation(GLState.scalarProgram, "u_vmax");
+      GLState.uOpacity = gl.getUniformLocation(GLState.scalarProgram, "u_opacity");
+      GLState.uCmap = gl.getUniformLocation(GLState.scalarProgram, "u_cmap");
 
-    gl.viewport(0, 0, els.canvas.width, els.canvas.height);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+      GLState.meshAPos = gl.getAttribLocation(GLState.meshProgram, "a_pos");
+      GLState.meshUMatrix = gl.getUniformLocation(GLState.meshProgram, "u_matrix");
+      GLState.meshUColor = gl.getUniformLocation(GLState.meshProgram, "u_color");
 
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      GLState.posBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, GLState.posBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, grid.triPositions, gl.STATIC_DRAW);
 
-    const vm = meta.variables[currentVar];
+      GLState.valBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, GLState.valBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, grid.cellIndexForVertex.length * 4, gl.DYNAMIC_DRAW);
 
-    gl.useProgram(glState.scalarProgram);
+      GLState.meshPosBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, GLState.meshPosBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, grid.edgePositions, gl.STATIC_DRAW);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, glState.posBuffer);
-    gl.enableVertexAttribArray(glState.aPos);
-    gl.vertexAttribPointer(glState.aPos, 2, gl.FLOAT, false, 0, 0);
+      GLState.vertexCount = grid.triPositions.length / 2;
+      GLState.meshVertexCount = grid.edgePositions.length / 2;
+      GLState.ready = true;
+    },
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, glState.valBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, vertexValues, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(glState.aVal);
-    gl.vertexAttribPointer(glState.aVal, 1, gl.FLOAT, false, 0, 0);
+    render: function(gl, matrix) {
+      if (!GLState.ready) return;
 
-    gl.uniformMatrix4fv(glState.uMatrix, false, matrix);
-    gl.uniform1f(glState.uVmin, vm.vmin);
-    gl.uniform1f(glState.uVmax, vm.vmax);
-    gl.uniform1f(glState.uOpacity, Number(els.opacitySlider.value || 0.82));
-    gl.uniform1i(glState.uCmap, cmapCode(vm.cmap));
+      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    gl.drawArrays(gl.TRIANGLES, 0, glState.vertexCount);
+      if (GLState.valuesReady) {
+        const vm = meta.variables[currentVar];
 
-    const meshCheck = document.getElementById("mesh-overlay-check");
-    if (meshCheck && meshCheck.checked) {
-      gl.useProgram(glState.meshProgram);
-      gl.bindBuffer(gl.ARRAY_BUFFER, glState.meshPosBuffer);
-      gl.enableVertexAttribArray(glState.meshAPos);
-      gl.vertexAttribPointer(glState.meshAPos, 2, gl.FLOAT, false, 0, 0);
-      gl.uniformMatrix4fv(glState.meshUMatrix, false, matrix);
-      gl.uniform4f(glState.meshUColor, 0.0, 0.0, 0.0, 0.22);
-      gl.drawArrays(gl.LINES, 0, glState.meshVertexCount);
+        gl.useProgram(GLState.scalarProgram);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, GLState.posBuffer);
+        gl.enableVertexAttribArray(GLState.aPos);
+        gl.vertexAttribPointer(GLState.aPos, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, GLState.valBuffer);
+        gl.enableVertexAttribArray(GLState.aVal);
+        gl.vertexAttribPointer(GLState.aVal, 1, gl.FLOAT, false, 0, 0);
+
+        gl.uniformMatrix4fv(GLState.uMatrix, false, matrix);
+        gl.uniform1f(GLState.uVmin, vm.vmin);
+        gl.uniform1f(GLState.uVmax, vm.vmax);
+        gl.uniform1f(GLState.uOpacity, Number(els.opacitySlider.value || 0.82));
+        gl.uniform1i(GLState.uCmap, cmapCode(vm.cmap));
+
+        gl.drawArrays(gl.TRIANGLES, 0, GLState.vertexCount);
+      }
+
+      if (els.meshOverlay && els.meshOverlay.checked) {
+        gl.useProgram(GLState.meshProgram);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, GLState.meshPosBuffer);
+        gl.enableVertexAttribArray(GLState.meshAPos);
+        gl.vertexAttribPointer(GLState.meshAPos, 2, gl.FLOAT, false, 0, 0);
+
+        gl.uniformMatrix4fv(GLState.meshUMatrix, false, matrix);
+        gl.uniform4f(GLState.meshUColor, 0.0, 0.0, 0.0, 0.32);
+
+        gl.drawArrays(gl.LINES, 0, GLState.meshVertexCount);
+      }
     }
+  };
+}
 
-    updateTimeLabel();
-    updateLegend();
+async function setFrame(i) {
+  const n = frameCount();
+  if (n <= 0 || !GLState.ready) return;
 
-    setStatus(`MOHID ${meta.cycle}\n${currentVar} frame ${currentFrame + 1}/${frameCount()}`);
-  } catch (err) {
-    console.error(err);
-    setStatus("Draw failed:\n" + err.message);
-  }
+  currentFrame = Math.max(0, Math.min(n - 1, Number(i)));
+  els.frameSlider.value = String(currentFrame);
+
+  const values = await loadFrame(currentVar, currentFrame);
+  const vertexValues = buildVertexValues(values);
+
+  const gl = GLState.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, GLState.valBuffer);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, vertexValues);
+
+  GLState.valuesReady = true;
+
+  updateTimeLabel();
+  updateLegend();
+
+  setStatus(`MOHID ${meta.cycle}\n${currentVar} frame ${currentFrame + 1}/${frameCount()}`);
+
+  map.triggerRepaint();
 }
 
 function fmtLegendNumber(x, digits = 1) {
@@ -467,12 +465,6 @@ function updateTimeLabel() {
   els.timeLabel.textContent = f ? (f.label || f.time_utc || "--") : "--";
 }
 
-function setFrame(i) {
-  currentFrame = Math.max(0, Math.min(frameCount() - 1, Number(i)));
-  els.frameSlider.value = String(currentFrame);
-  drawCurrentFrame();
-}
-
 function stopPlay() {
   if (timer !== null) {
     clearInterval(timer);
@@ -498,64 +490,94 @@ function togglePlay() {
 
 function setBasemap(name) {
   if (!map) return;
+
   if (name === "satellite") {
-    map.setLayoutProperty("carto-light", "visibility", "none");
-    map.setLayoutProperty("esri-satellite", "visibility", "visible");
+    if (map.getLayer("carto-light")) map.setLayoutProperty("carto-light", "visibility", "none");
+    if (map.getLayer("esri-satellite")) map.setLayoutProperty("esri-satellite", "visibility", "visible");
   } else {
-    map.setLayoutProperty("carto-light", "visibility", "visible");
-    map.setLayoutProperty("esri-satellite", "visibility", "none");
+    if (map.getLayer("carto-light")) map.setLayoutProperty("carto-light", "visibility", "visible");
+    if (map.getLayer("esri-satellite")) map.setLayoutProperty("esri-satellite", "visibility", "none");
   }
+
+  try {
+    if (map.getLayer("mohid-custom-layer")) map.moveLayer("mohid-custom-layer");
+  } catch (e) {}
+
+  map.triggerRepaint();
+}
+
+function makeMapStyle() {
+  return {
+    version: 8,
+    sources: {
+      "carto-light": {
+        type: "raster",
+        tiles: [
+          "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+          "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+          "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+        ],
+        tileSize: 256,
+        attribution: "© OpenStreetMap © CARTO"
+      },
+      "esri-satellite": {
+        type: "raster",
+        tiles: [
+          "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        ],
+        tileSize: 256,
+        attribution: "Tiles © Esri"
+      }
+    },
+    layers: [
+      {
+        id: "carto-light",
+        type: "raster",
+        source: "carto-light",
+        layout: { visibility: "none" }
+      },
+      {
+        id: "esri-satellite",
+        type: "raster",
+        source: "esri-satellite",
+        layout: { visibility: "visible" }
+      }
+    ]
+  };
 }
 
 function initMap() {
   map = new maplibregl.Map({
     container: "map",
+    style: makeMapStyle(),
     center: [125.2, 36.2],
     zoom: 5.4,
     minZoom: 3,
     maxZoom: 12,
-    style: {
-      version: 8,
-      sources: {
-        "carto-light": {
-          type: "raster",
-          tiles: [
-            "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-            "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-            "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
-          ],
-          tileSize: 256,
-          attribution: "© OpenStreetMap © CARTO"
-        },
-        "esri-satellite": {
-          type: "raster",
-          tiles: [
-            "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          ],
-          tileSize: 256,
-          attribution: "Tiles © Esri"
-        }
-      },
-      layers: [
-        { id: "carto-light", type: "raster", source: "carto-light", layout: { visibility: "none" } },
-        { id: "esri-satellite", type: "raster", source: "esri-satellite", layout: { visibility: "visible" } }
-      ]
-    }
+    dragRotate: false,
+    pitchWithRotate: false,
+    renderWorldCopies: false,
+    attributionControl: true
   });
 
-  map.on("load", drawCurrentFrame);
-  map.on("move", drawCurrentFrame);
-  map.on("zoom", drawCurrentFrame);
-  map.on("resize", resizeCanvas);
+  map.fitBounds(
+    [
+      [meta.grid.lon_min, meta.grid.lat_min],
+      [meta.grid.lon_max, meta.grid.lat_max]
+    ],
+    { padding: 30, duration: 0 }
+  );
 }
 
 function bindEvents() {
   els.varSelect.addEventListener("change", () => {
     currentVar = els.varSelect.value;
-    drawCurrentFrame();
+    setFrame(currentFrame);
   });
 
-  els.opacitySlider.addEventListener("input", drawCurrentFrame);
+  els.opacitySlider.addEventListener("input", () => {
+    map.triggerRepaint();
+  });
 
   els.frameSlider.addEventListener("input", () => {
     stopPlay();
@@ -564,39 +586,49 @@ function bindEvents() {
 
   els.playBtn.addEventListener("click", togglePlay);
 
+  if (els.meshOverlay) {
+    els.meshOverlay.addEventListener("change", () => {
+      map.triggerRepaint();
+    });
+  }
+
   document.querySelectorAll('input[name="basemap"]').forEach(r => {
     r.addEventListener("change", () => setBasemap(r.value));
   });
-
-  const meshCheck = document.getElementById("mesh-overlay-check");
-  if (meshCheck) meshCheck.addEventListener("change", drawCurrentFrame);
-
-  window.addEventListener("resize", resizeCanvas);
 }
 
-async function init() {
+async function boot() {
   try {
     setStatus("Loading metadata...");
     meta = await fetchJson(DATA_ROOT + "meta.json");
 
-    initMap();
-
-    setStatus("Loading grid...");
-    await loadGrid();
-
     els.frameSlider.max = String(frameCount() - 1);
     els.frameSlider.value = "0";
 
-    bindEvents();
-    resizeCanvas();
-    updateLegend();
-    updateTimeLabel();
+    initMap();
 
-    setStatus(`MOHID ${meta.cycle}\n${meta.forecast_start_utc} ~ ${meta.forecast_end_utc}`);
+    map.on("load", async () => {
+      setStatus("Loading MOHID grid...");
+      await loadGrid();
+
+      map.addLayer(makeMohidLayer());
+
+      bindEvents();
+      updateLegend();
+      updateTimeLabel();
+
+      await setFrame(0);
+
+      setStatus(
+        `Ready\n` +
+        `MOHID ${meta.cycle}\n` +
+        `${grid.validCells} cells`
+      );
+    });
   } catch (err) {
     console.error(err);
-    setStatus("Initialization failed:\n" + err.message);
+    setStatus("ERROR:\n" + err.message);
   }
 }
 
-init();
+boot();
