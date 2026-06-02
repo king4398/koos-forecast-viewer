@@ -29,6 +29,7 @@ let currentV = null;
 let particles = [];
 let particleRunning = false;
 let lastParticleTime = 0;
+let isMapInteracting = false;
 
 
 let particleCanvas = null;
@@ -768,6 +769,25 @@ function bindEvents() {
   document.querySelectorAll('input[name="basemap"]').forEach(r => {
     r.addEventListener("change", () => setBasemap(r.value));
   });
+
+  if (map && !map.__mohidParticleInteractionBound) {
+    map.__mohidParticleInteractionBound = true;
+
+    const beginInteraction = () => {
+      isMapInteracting = true;
+      map.triggerRepaint();
+    };
+
+    const endInteraction = () => {
+      isMapInteracting = false;
+      map.triggerRepaint();
+    };
+
+    map.on("movestart", beginInteraction);
+    map.on("zoomstart", beginInteraction);
+    map.on("moveend", endInteraction);
+    map.on("zoomend", endInteraction);
+  }
 }
 
 
@@ -1295,6 +1315,15 @@ function updateWebglParticles() {
 
   if (els.currentOverlay && !els.currentOverlay.checked) {
     particles = [];
+    return;
+  }
+
+  /*
+   * Keep trails fixed to the map during pan/zoom.
+   * We still render the existing lon/lat trail with the current MapLibre matrix,
+   * but we do not advect particles while the map camera is changing.
+   */
+  if (isMapInteracting) {
     return;
   }
 
