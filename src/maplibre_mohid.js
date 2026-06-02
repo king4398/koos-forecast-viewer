@@ -1067,7 +1067,7 @@ function setBasemap(name) {
 
 function makeMapStyle() {
   return {
-    ve
+    version: 8,
     sources: {
       "carto-light": {
         type: "raster",
