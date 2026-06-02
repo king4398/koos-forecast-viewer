@@ -36,9 +36,6 @@ let particleCtx = null;
 let particleAnimId = null;
 
 
-let particleCanvas = null;
-let particleCtx = null;
-let particleAnimId = null;
 
 const GLState = {
   gl: null,
