@@ -585,7 +585,7 @@ function vectorAt(lon, lat) {
   let bestCell = -1;
   let bestD2 = 1.0e30;
 
-  const radius = 2;
+  const radius = 1;
 
   for (let dy = -radius; dy <= radius; dy++) {
     const yy = iy + dy;
@@ -658,7 +658,7 @@ function vectorAt(lon, lat) {
 }
 
 function particleTargetCount() {
-  const base = Number(els.particleDensity ? els.particleDensity.value : 1800);
+  const base = Number(els.particleDensity ? els.particleDensity.value : 1400);
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
@@ -666,7 +666,7 @@ function particleTargetCount() {
   if (z <= 5.0) mul = 0.82;
   else if (z < 9.0) mul = 0.82 + (z - 5.0) * (0.18 / 4.0);
 
-  return Math.max(700, Math.round(base * mul));
+  return Math.max(500, Math.round(base * mul));
 }
 
 function randomValidParticlePoint() {
@@ -1031,15 +1031,16 @@ function uploadAndDrawParticles(gl, matrix) {
    * Quad-line particle width in screen pixels.
    * Wider than GL_LINES, but still natural.
    */
-  let widthPx = currentVar === "current_speed" ? 1.05 : 0.92;
+  let widthPx = currentVar === "current_speed" ? 0.92 : 0.78;
 
   /*
    * Thin but anti-aliased rounded dashes.
+   * Slightly thinner for performance and cleaner overview.
    */
-  if (z <= 4.8) widthPx *= 0.72;
-  else if (z <= 5.5) widthPx *= 0.80;
-  else if (z <= 6.5) widthPx *= 0.90;
-  else if (z >= 8.5) widthPx *= 1.00;
+  if (z <= 4.8) widthPx *= 0.62;
+  else if (z <= 5.5) widthPx *= 0.70;
+  else if (z <= 6.5) widthPx *= 0.82;
+  else if (z >= 8.5) widthPx *= 0.95;
 
   gl.useProgram(GLState.particleProgram);
 
