@@ -37,16 +37,16 @@ const GLState = {
   scalarProgram: null,
   meshProgram: null,
   particleProgram: null,
-  particlePointProgram: null,
 
   scalarPosBuffer: null,
   scalarValBuffer: null,
   meshPosBuffer: null,
 
-  particlePosBuffer: null,
   particleColorBuffer: null,
-  particleHeadPosBuffer: null,
-  particleHeadColorBuffer: null,
+  particleStartBuffer: null,
+  particleEndBuffer: null,
+  particleSideBuffer: null,
+  particleTBuffer: null,
 
   scalarAPos: null,
   scalarAVal: null,
@@ -60,15 +60,9 @@ const GLState = {
   meshUMatrix: null,
   meshUColor: null,
 
-  particleAPos: null,
   particleAColor: null,
   particleUMatrix: null,
-  particleUPointSize: null,
 
-  particleHeadAPos: null,
-  particleHeadAColor: null,
-  particleHeadUMatrix: null,
-  particleHeadUPointSize: null,
 
   scalarVertexCount: 0,
   meshVertexCount: 0,
@@ -992,7 +986,6 @@ function makeMohidLayer() {
       GLState.scalarProgram = makeProgram(gl, SCALAR_VS, SCALAR_FS);
       GLState.meshProgram = makeProgram(gl, MESH_VS, MESH_FS);
       GLState.particleProgram = makeProgram(gl, PARTICLE_VS, PARTICLE_FS);
-      GLState.particlePointProgram = makeProgram(gl, PARTICLE_VS, PARTICLE_POINT_FS);
 
       GLState.scalarAPos = gl.getAttribLocation(GLState.scalarProgram, "a_pos");
       GLState.scalarAVal = gl.getAttribLocation(GLState.scalarProgram, "a_value");
@@ -1014,12 +1007,6 @@ function makeMohidLayer() {
       GLState.particleUMatrix = gl.getUniformLocation(GLState.particleProgram, "u_matrix");
       GLState.particleUViewport = gl.getUniformLocation(GLState.particleProgram, "u_viewport");
       GLState.particleUWidth = gl.getUniformLocation(GLState.particleProgram, "u_width");
-      GLState.particleUPointSize = gl.getUniformLocation(GLState.particleProgram, "u_point_size");
-
-      GLState.particleHeadAPos = gl.getAttribLocation(GLState.particlePointProgram, "a_pos");
-      GLState.particleHeadAColor = gl.getAttribLocation(GLState.particlePointProgram, "a_color");
-      GLState.particleHeadUMatrix = gl.getUniformLocation(GLState.particlePointProgram, "u_matrix");
-      GLState.particleHeadUPointSize = gl.getUniformLocation(GLState.particlePointProgram, "u_point_size");
 
       GLState.scalarPosBuffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, GLState.scalarPosBuffer);
@@ -1042,8 +1029,6 @@ function makeMohidLayer() {
       GLState.particleSideBuffer = gl.createBuffer();
       GLState.particleTBuffer = gl.createBuffer();
       GLState.particleColorBuffer = gl.createBuffer();
-      GLState.particleHeadPosBuffer = gl.createBuffer();
-      GLState.particleHeadColorBuffer = gl.createBuffer();
 
       GLState.scalarVertexCount = grid.triPositions.length / 2;
       GLState.meshVertexCount = grid.edgePositions.length / 2;
