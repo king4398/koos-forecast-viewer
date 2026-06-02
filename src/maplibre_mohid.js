@@ -25,14 +25,9 @@ const MODEL_DEFS = {
 };
 
 const urlParams = new URLSearchParams(window.location.search);
-let currentModel =
-  urlParams.get("model") ||
-  window.localStorage.getItem("koos_forecast_model") ||
-  "mohid";
+let currentModel = urlParams.get("model") || "mohid";
 
 if (!MODEL_DEFS[currentModel]) currentModel = "mohid";
-
-window.localStorage.setItem("koos_forecast_model", currentModel);
 
 let DATA_ROOT = MODEL_DEFS[currentModel].dataRoot;
 
@@ -153,7 +148,8 @@ async function fetchJson(url) {
 }
 
 async function fetchFloat32(url, expectedLen = null) {
-  const res = await fetch(url, { cache: "force-cache" });
+  const sep = url.includes("?") ? "&" : "?";
+  const res = await fetch(url + sep + "v=" + Date.now(), { cache: "no-store" });
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   const buf = await res.arrayBuffer();
   const arr = new Float32Array(buf);
@@ -164,7 +160,8 @@ async function fetchFloat32(url, expectedLen = null) {
 }
 
 async function fetchInt32(url, expectedLen = null) {
-  const res = await fetch(url, { cache: "force-cache" });
+  const sep = url.includes("?") ? "&" : "?";
+  const res = await fetch(url + sep + "v=" + Date.now(), { cache: "no-store" });
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   const buf = await res.arrayBuffer();
   const arr = new Int32Array(buf);
@@ -1410,7 +1407,7 @@ async function setFrame(i) {
   updateLegend();
 
   setStatus(
-    `MOHID ${meta.cycle}\n` +
+    `${MODEL_DEFS[currentModel].label} ${meta.cycle}\n` +
     `${currentVar} frame ${currentFrame + 1}/${frameCount()}`
   );
 
@@ -1595,7 +1592,6 @@ function bindEvents() {
   if (els.modelSelect) {
     els.modelSelect.addEventListener("change", () => {
       const model = els.modelSelect.value || "mohid";
-      window.localStorage.setItem("koos_forecast_model", model);
 
       const url = new URL(window.location.href);
       url.searchParams.set("model", model);
@@ -1665,6 +1661,7 @@ function bindEvents() {
 
 async function boot() {
   try {
+    configureModelControls();
     setStatus("Loading metadata...");
 
     meta = await fetchJson(DATA_ROOT + "meta.json");
@@ -1675,7 +1672,7 @@ async function boot() {
     initMap();
 
     map.on("load", async () => {
-      setStatus("Loading MOHID grid...");
+      setStatus(`Loading ${MODEL_DEFS[currentModel].label} grid...`);
 
       await loadGrid();
 
@@ -1689,7 +1686,7 @@ async function boot() {
 
       setStatus(
         `Ready\n` +
-        `MOHID ${meta.cycle}\n` +
+        `${MODEL_DEFS[currentModel].label} ${meta.cycle}\n` +
         `${grid.validCells} cells`
       );
     });

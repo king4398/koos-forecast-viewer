@@ -2,7 +2,7 @@
   "model": "swan",
   "cycle": "2026051212",
   "forecast_start_utc": "2026-05-12T12:00:00Z",
-  "forecast_end_utc": "2026-05-13T11:00:00Z",
+  "forecast_end_utc": "2026-05-13T12:00:00Z",
   "grid": {
     "nx": 720,
     "ny": 712,
@@ -306,6 +306,17 @@
         "tp": "tp_0023.bin",
         "current_u": "current_u_0023.bin",
         "current_v": "current_v_0023.bin"
+      }
+    },
+    {
+      "index": 24,
+      "time_utc": "2026-05-13T12:00:00Z",
+      "label": "2026-05-13 12:00 UTC",
+      "files": {
+        "hs": "hs_0024.bin",
+        "tp": "tp_0024.bin",
+        "current_u": "current_u_0024.bin",
+        "current_v": "current_v_0024.bin"
       }
     }
   ]
