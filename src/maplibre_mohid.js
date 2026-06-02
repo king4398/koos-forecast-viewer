@@ -638,12 +638,7 @@ function buildVertexValues(values) {
 
 
 function vectorAt(lon, lat) {
-  if (!currentU || !currentV || !grid || !grid.particleLookupCell) return null;
-
-  const lnx = grid.particleLookupNx;
-  const lny = grid.particleLookupNy;
-
-  if (!lnx || !lny) return null;
+  if (!currentU || !currentV || !grid) return null;
 
   const lonMin = meta.grid.lon_min;
   const lonMax = meta.grid.lon_max;
@@ -651,6 +646,43 @@ function vectorAt(lon, lat) {
   const latMax = meta.grid.lat_max;
 
   if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return null;
+
+  /*
+   * SWAN is a regular grid. Use direct nearest-cell lookup.
+   * This avoids MOHID lookup smoothing issues and makes wave particles robust.
+   */
+  if (currentModel === "swan") {
+    const nx = grid.nx;
+    const ny = grid.ny;
+
+    let ix = Math.round((lon - lonMin) / Math.max(1.0e-12, lonMax - lonMin) * (nx - 1));
+    let iy = Math.round((lat - latMin) / Math.max(1.0e-12, latMax - latMin) * (ny - 1));
+
+    ix = Math.max(0, Math.min(nx - 1, ix));
+    iy = Math.max(0, Math.min(ny - 1, iy));
+
+    const cell = iy * nx + ix;
+
+    if (cell < 0 || cell >= grid.n) return null;
+    if (grid.mask && grid.mask[cell] <= 0.0) return null;
+
+    const u = currentU[cell];
+    const v = currentV[cell];
+
+    if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
+
+    const speed = Math.hypot(u, v);
+    if (!Number.isFinite(speed) || speed <= 0.0) return null;
+
+    return { u, v, speed };
+  }
+
+  if (!grid.particleLookupCell) return null;
+
+  const lnx = grid.particleLookupNx;
+  const lny = grid.particleLookupNy;
+
+  if (!lnx || !lny) return null;
 
   let ix = Math.floor((lon - lonMin) / (lonMax - lonMin) * lnx);
   let iy = Math.floor((lat - latMin) / (latMax - latMin) * lny);
@@ -861,7 +893,17 @@ function resetParticles() {
 function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
+  if (currentModel === "swan") {
+    /*
+     * SWAN wave direction particles: fixed, visible trail.
+     */
+    if (z <= 5.5) return 70;
+    if (z <= 7.5) return 58;
+    return 46;
+  }
+
   /*
+   * MOHID current particles.
    * Consistent zoom scaling:
    * low zoom = longer trail, high zoom = shorter trail.
    */
@@ -877,7 +919,17 @@ function particleTrailMax() {
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
+  if (currentModel === "swan") {
+    /*
+     * SWAN wave direction particles use fixed visual speed.
+     */
+    if (z <= 5.5) return 0.0075;
+    if (z <= 7.5) return 0.0068;
+    return 0.0062;
+  }
+
   /*
+   * MOHID current particles.
    * Consistent zoom scaling:
    * low zoom = faster, high zoom = calmer.
    */
