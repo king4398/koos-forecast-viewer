@@ -25,8 +25,14 @@ const MODEL_DEFS = {
 };
 
 const urlParams = new URLSearchParams(window.location.search);
-let currentModel = urlParams.get("model") || "mohid";
+let currentModel =
+  urlParams.get("model") ||
+  window.localStorage.getItem("koos_forecast_model") ||
+  "mohid";
+
 if (!MODEL_DEFS[currentModel]) currentModel = "mohid";
+
+window.localStorage.setItem("koos_forecast_model", currentModel);
 
 let DATA_ROOT = MODEL_DEFS[currentModel].dataRoot;
 
@@ -1589,8 +1595,11 @@ function bindEvents() {
   if (els.modelSelect) {
     els.modelSelect.addEventListener("change", () => {
       const model = els.modelSelect.value || "mohid";
+      window.localStorage.setItem("koos_forecast_model", model);
+
       const url = new URL(window.location.href);
       url.searchParams.set("model", model);
+      url.searchParams.set("cache", Date.now().toString());
       window.location.href = url.toString();
     });
   }

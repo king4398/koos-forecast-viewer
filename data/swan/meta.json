@@ -2,7 +2,7 @@
   "model": "swan",
   "cycle": "2026051212",
   "forecast_start_utc": "2026-05-12T12:00:00Z",
-  "forecast_end_utc": "2026-05-13T12:00:00Z",
+  "forecast_end_utc": "2026-05-13T11:00:00Z",
   "grid": {
     "nx": 720,
     "ny": 712,
@@ -51,8 +51,8 @@
       "files": {
         "hs": "hs_0000.bin",
         "tp": "tp_0000.bin",
-        "current_u": "wave_u_0000.bin",
-        "current_v": "wave_v_0000.bin"
+        "current_u": "current_u_0000.bin",
+        "current_v": "current_v_0000.bin"
       }
     },
     {
@@ -62,8 +62,8 @@
       "files": {
         "hs": "hs_0001.bin",
         "tp": "tp_0001.bin",
-        "current_u": "wave_u_0001.bin",
-        "current_v": "wave_v_0001.bin"
+        "current_u": "current_u_0001.bin",
+        "current_v": "current_v_0001.bin"
       }
     },
     {
@@ -73,8 +73,8 @@
       "files": {
         "hs": "hs_0002.bin",
         "tp": "tp_0002.bin",
-        "current_u": "wave_u_0002.bin",
-        "current_v": "wave_v_0002.bin"
+        "current_u": "current_u_0002.bin",
+        "current_v": "current_v_0002.bin"
       }
     },
     {
@@ -84,8 +84,8 @@
       "files": {
         "hs": "hs_0003.bin",
         "tp": "tp_0003.bin",
-        "current_u": "wave_u_0003.bin",
-        "current_v": "wave_v_0003.bin"
+        "current_u": "current_u_0003.bin",
+        "current_v": "current_v_0003.bin"
       }
     },
     {
@@ -95,8 +95,8 @@
       "files": {
         "hs": "hs_0004.bin",
         "tp": "tp_0004.bin",
-        "current_u": "wave_u_0004.bin",
-        "current_v": "wave_v_0004.bin"
+        "current_u": "current_u_0004.bin",
+        "current_v": "current_v_0004.bin"
       }
     },
     {
@@ -106,8 +106,8 @@
       "files": {
         "hs": "hs_0005.bin",
         "tp": "tp_0005.bin",
-        "current_u": "wave_u_0005.bin",
-        "current_v": "wave_v_0005.bin"
+        "current_u": "current_u_0005.bin",
+        "current_v": "current_v_0005.bin"
       }
     },
     {
@@ -117,8 +117,8 @@
       "files": {
         "hs": "hs_0006.bin",
         "tp": "tp_0006.bin",
-        "current_u": "wave_u_0006.bin",
-        "current_v": "wave_v_0006.bin"
+        "current_u": "current_u_0006.bin",
+        "current_v": "current_v_0006.bin"
       }
     },
     {
@@ -128,8 +128,8 @@
       "files": {
         "hs": "hs_0007.bin",
         "tp": "tp_0007.bin",
-        "current_u": "wave_u_0007.bin",
-        "current_v": "wave_v_0007.bin"
+        "current_u": "current_u_0007.bin",
+        "current_v": "current_v_0007.bin"
       }
     },
     {
@@ -139,8 +139,8 @@
       "files": {
         "hs": "hs_0008.bin",
         "tp": "tp_0008.bin",
-        "current_u": "wave_u_0008.bin",
-        "current_v": "wave_v_0008.bin"
+        "current_u": "current_u_0008.bin",
+        "current_v": "current_v_0008.bin"
       }
     },
     {
@@ -150,8 +150,8 @@
       "files": {
         "hs": "hs_0009.bin",
         "tp": "tp_0009.bin",
-        "current_u": "wave_u_0009.bin",
-        "current_v": "wave_v_0009.bin"
+        "current_u": "current_u_0009.bin",
+        "current_v": "current_v_0009.bin"
       }
     },
     {
@@ -161,8 +161,8 @@
       "files": {
         "hs": "hs_0010.bin",
         "tp": "tp_0010.bin",
-        "current_u": "wave_u_0010.bin",
-        "current_v": "wave_v_0010.bin"
+        "current_u": "current_u_0010.bin",
+        "current_v": "current_v_0010.bin"
       }
     },
     {
@@ -172,8 +172,8 @@
       "files": {
         "hs": "hs_0011.bin",
         "tp": "tp_0011.bin",
-        "current_u": "wave_u_0011.bin",
-        "current_v": "wave_v_0011.bin"
+        "current_u": "current_u_0011.bin",
+        "current_v": "current_v_0011.bin"
       }
     },
     {
@@ -183,8 +183,8 @@
       "files": {
         "hs": "hs_0012.bin",
         "tp": "tp_0012.bin",
-        "current_u": "wave_u_0012.bin",
-        "current_v": "wave_v_0012.bin"
+        "current_u": "current_u_0012.bin",
+        "current_v": "current_v_0012.bin"
       }
     },
     {
@@ -194,8 +194,8 @@
       "files": {
         "hs": "hs_0013.bin",
         "tp": "tp_0013.bin",
-        "current_u": "wave_u_0013.bin",
-        "current_v": "wave_v_0013.bin"
+        "current_u": "current_u_0013.bin",
+        "current_v": "current_v_0013.bin"
       }
     },
     {
@@ -205,8 +205,8 @@
       "files": {
         "hs": "hs_0014.bin",
         "tp": "tp_0014.bin",
-        "current_u": "wave_u_0014.bin",
-        "current_v": "wave_v_0014.bin"
+        "current_u": "current_u_0014.bin",
+        "current_v": "current_v_0014.bin"
       }
     },
     {
@@ -216,8 +216,8 @@
       "files": {
         "hs": "hs_0015.bin",
         "tp": "tp_0015.bin",
-        "current_u": "wave_u_0015.bin",
-        "current_v": "wave_v_0015.bin"
+        "current_u": "current_u_0015.bin",
+        "current_v": "current_v_0015.bin"
       }
     },
     {
@@ -227,8 +227,8 @@
       "files": {
         "hs": "hs_0016.bin",
         "tp": "tp_0016.bin",
-        "current_u": "wave_u_0016.bin",
-        "current_v": "wave_v_0016.bin"
+        "current_u": "current_u_0016.bin",
+        "current_v": "current_v_0016.bin"
       }
     },
     {
@@ -238,8 +238,8 @@
       "files": {
         "hs": "hs_0017.bin",
         "tp": "tp_0017.bin",
-        "current_u": "wave_u_0017.bin",
-        "current_v": "wave_v_0017.bin"
+        "current_u": "current_u_0017.bin",
+        "current_v": "current_v_0017.bin"
       }
     },
     {
@@ -249,8 +249,8 @@
       "files": {
         "hs": "hs_0018.bin",
         "tp": "tp_0018.bin",
-        "current_u": "wave_u_0018.bin",
-        "current_v": "wave_v_0018.bin"
+        "current_u": "current_u_0018.bin",
+        "current_v": "current_v_0018.bin"
       }
     },
     {
@@ -260,8 +260,8 @@
       "files": {
         "hs": "hs_0019.bin",
         "tp": "tp_0019.bin",
-        "current_u": "wave_u_0019.bin",
-        "current_v": "wave_v_0019.bin"
+        "current_u": "current_u_0019.bin",
+        "current_v": "current_v_0019.bin"
       }
     },
     {
@@ -271,8 +271,8 @@
       "files": {
         "hs": "hs_0020.bin",
         "tp": "tp_0020.bin",
-        "current_u": "wave_u_0020.bin",
-        "current_v": "wave_v_0020.bin"
+        "current_u": "current_u_0020.bin",
+        "current_v": "current_v_0020.bin"
       }
     },
     {
@@ -282,8 +282,8 @@
       "files": {
         "hs": "hs_0021.bin",
         "tp": "tp_0021.bin",
-        "current_u": "wave_u_0021.bin",
-        "current_v": "wave_v_0021.bin"
+        "current_u": "current_u_0021.bin",
+        "current_v": "current_v_0021.bin"
       }
     },
     {
@@ -293,8 +293,8 @@
       "files": {
         "hs": "hs_0022.bin",
         "tp": "tp_0022.bin",
-        "current_u": "wave_u_0022.bin",
-        "current_v": "wave_v_0022.bin"
+        "current_u": "current_u_0022.bin",
+        "current_v": "current_v_0022.bin"
       }
     },
     {
@@ -304,19 +304,8 @@
       "files": {
         "hs": "hs_0023.bin",
         "tp": "tp_0023.bin",
-        "current_u": "wave_u_0023.bin",
-        "current_v": "wave_v_0023.bin"
-      }
-    },
-    {
-      "index": 24,
-      "time_utc": "2026-05-13T12:00:00Z",
-      "label": "2026-05-13 12:00 UTC",
-      "files": {
-        "hs": "hs_0024.bin",
-        "tp": "tp_0024.bin",
-        "current_u": "wave_u_0024.bin",
-        "current_v": "wave_v_0024.bin"
+        "current_u": "current_u_0023.bin",
+        "current_v": "current_v_0023.bin"
       }
     }
   ]
