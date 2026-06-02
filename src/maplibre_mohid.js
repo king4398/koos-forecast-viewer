@@ -787,31 +787,30 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Visible tail without returning to long streamline.
+   * Number of history points.
+   * Actual rendering uses one smooth dash from old tail to current head.
    */
-  if (z <= 4.8) return 10;
   if (z <= 5.5) return 10;
-  if (z <= 6.5) return 11;
-  if (z <= 7.5) return 11;
+  if (z <= 7.0) return 11;
   if (z <= 8.5) return 12;
 
-  return 12;
+  return 13;
 }
 
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Calm speed.
-   * Low zoom is only slightly faster, not over-accelerated.
+   * Slower, calmer particle advection.
+   * The previous low-zoom speed was too fast.
    */
-  if (z <= 4.8) return 0.0082;
-  if (z <= 5.4) return 0.0074;
-  if (z <= 6.2) return 0.0064;
-  if (z <= 7.0) return 0.0055;
-  if (z <= 8.0) return 0.0049;
+  if (z <= 4.8) return 0.0048;
+  if (z <= 5.4) return 0.0046;
+  if (z <= 6.2) return 0.0045;
+  if (z <= 7.0) return 0.0044;
+  if (z <= 8.0) return 0.0043;
 
-  return 0.0048;
+  return 0.0042;
 }
 
 function updateParticles() {
@@ -1095,11 +1094,12 @@ function uploadAndDrawParticles(gl, matrix) {
   let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
 
   /*
-   * Thin anti-aliased rounded dashes.
+   * Keep low-zoom particles visible.
+   * Do not shrink below visibility threshold.
    */
-  if (z <= 4.8) widthPx *= 0.82;
-  else if (z <= 5.5) widthPx *= 0.88;
-  else if (z <= 6.5) widthPx *= 0.92;
+  if (z <= 4.8) widthPx *= 1.05;
+  else if (z <= 5.5) widthPx *= 1.00;
+  else if (z <= 6.5) widthPx *= 0.96;
   else if (z >= 8.5) widthPx *= 0.98;
 
   gl.useProgram(GLState.particleProgram);
