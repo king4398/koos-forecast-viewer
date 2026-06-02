@@ -604,9 +604,9 @@ function resetOneParticle(p) {
     p.lat = q.lat;
   }
 
-  p.age = Math.floor(Math.random() * 120);
-  p.maxAge = 260 + Math.floor(Math.random() * 220);
-  p.fadeAge = 0;
+  p.age = Math.floor(Math.random() * 80);
+  p.maxAge = 170 + Math.floor(Math.random() * 140);
+  p.fadeAge = Math.floor(Math.random() * 10);
   p.trail = [{ lon: p.lon, lat: p.lat, speed: 0.0 }];
 }
 
@@ -685,7 +685,7 @@ function updateParticles() {
   const dt = particleFlowScale() * stepScale;
 
   for (const p of particles) {
-    if (!p || p.age > p.maxAge + 120) {
+    if (!p || p.age > p.maxAge) {
       resetOneParticle(p);
       continue;
     }
@@ -983,7 +983,7 @@ function replenishParticlesForView() {
   while (particles.length < target) {
     const p = {};
     resetOneParticle(p);
-    p.fadeAge = 0;
+    p.fadeAge = Math.floor(Math.random() * 10);
     particles.push(p);
   }
 
