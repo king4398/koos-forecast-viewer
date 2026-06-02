@@ -787,17 +787,16 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Performance-first Windy-like dash.
-   * Low zoom: short to avoid streamlines and lag.
-   * High zoom: about 1/3 longer than overview.
+   * Balanced Windy-like dash.
+   * Short enough for performance, but long enough to show a visible tail.
    */
-  if (z <= 4.8) return 3;
-  if (z <= 5.5) return 3;
-  if (z <= 6.5) return 4;
-  if (z <= 7.5) return 4;
-  if (z <= 8.5) return 5;
+  if (z <= 4.8) return 5;
+  if (z <= 5.5) return 5;
+  if (z <= 6.5) return 6;
+  if (z <= 7.5) return 7;
+  if (z <= 8.5) return 8;
 
-  return 6;
+  return 9;
 }
 
 function particleFlowScale() {
