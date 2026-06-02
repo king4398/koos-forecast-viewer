@@ -787,28 +787,29 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Number of history points.
-   * Actual rendering uses one smooth dash from old tail to current head.
+   * History length for one-dash particle rendering.
+   * Low zoom needs more history so the dash remains visible.
    */
-  if (z <= 5.5) return 10;
-  if (z <= 7.0) return 11;
+  if (z <= 4.8) return 16;
+  if (z <= 5.5) return 15;
+  if (z <= 6.5) return 14;
+  if (z <= 7.5) return 13;
   if (z <= 8.5) return 12;
 
-  return 13;
+  return 12;
 }
 
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Slower, calmer particle advection.
-   * The previous low-zoom speed was too fast.
+   * Calm particle advection.
    */
-  if (z <= 4.8) return 0.0048;
-  if (z <= 5.4) return 0.0046;
-  if (z <= 6.2) return 0.0045;
-  if (z <= 7.0) return 0.0044;
-  if (z <= 8.0) return 0.0043;
+  if (z <= 4.8) return 0.0038;
+  if (z <= 5.4) return 0.0038;
+  if (z <= 6.2) return 0.0039;
+  if (z <= 7.0) return 0.0040;
+  if (z <= 8.0) return 0.0041;
 
   return 0.0042;
 }
@@ -972,22 +973,19 @@ function buildParticleBuffers() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * SCHISM-like color/opacity, but rendered as map-fixed WebGL quads.
-   * Lower alpha for scalar overlays; stronger for current_speed.
+   * One particle = one rounded dash.
+   * This avoids tiny segmented trails disappearing at low zoom.
    */
-  let zoomAlphaBoost = 1.00;
-  if (z <= 4.5) zoomAlphaBoost = 1.80;
-  else if (z <= 5.0) zoomAlphaBoost = 1.60;
-  else if (z <= 5.8) zoomAlphaBoost = 1.42;
-  else if (z <= 6.6) zoomAlphaBoost = 1.25;
-  else if (z <= 7.4) zoomAlphaBoost = 1.12;
+  let zoomAlphaBoost = 1.0;
+  if (z <= 4.8) zoomAlphaBoost = 1.70;
+  else if (z <= 5.5) zoomAlphaBoost = 1.55;
+  else if (z <= 6.5) zoomAlphaBoost = 1.35;
+  else if (z <= 7.5) zoomAlphaBoost = 1.15;
 
   function pushQuad(q0, q1, c0, c1) {
     const p0 = mercatorXY(q0.lon, q0.lat);
     const p1 = mercatorXY(q1.lon, q1.lat);
 
-    // triangle 1: left-start, right-start, right-end
-    // triangle 2: left-start, right-end, left-end
     const sideVals = [-1, 1, 1, -1, 1, -1];
     const tVals = [0, 0, 1, 0, 1, 1];
 
@@ -998,6 +996,7 @@ function buildParticleBuffers() {
       ts.push(tVals[m]);
 
       const t = tVals[m];
+
       colors.push(
         c0[0] * (1.0 - t) + c1[0] * t,
         c0[1] * (1.0 - t) + c1[1] * t,
@@ -1011,47 +1010,43 @@ function buildParticleBuffers() {
     if (!p || !p.trail || p.trail.length < 2) continue;
 
     const n = p.trail.length;
-    const fadeFactor = Math.min(1.0, (p.fadeAge || 0) / 14.0);
 
-    for (let k = 1; k < n; k++) {
-      const q0 = p.trail[k - 1];
-      const q1 = p.trail[k];
+    /*
+     * Use one old point and the current point.
+     * Do not draw all internal trail segments.
+     */
+    const q0 = p.trail[0];
+    const q1 = p.trail[n - 1];
 
-      if (
-        !Number.isFinite(q0.lon) || !Number.isFinite(q0.lat) ||
-        !Number.isFinite(q1.lon) || !Number.isFinite(q1.lat)
-      ) {
-        continue;
-      }
-
-      const t0 = (k - 1) / Math.max(1, n - 1);
-      const t1 = k / Math.max(1, n - 1);
-      const speed = q1.speed || 0.0;
-
-      /*
-       * Natural head/tail gradient.
-       * No bright head dot. Just gradually stronger toward the head.
-       */
-      /*
-       * Slightly stronger tail visibility.
-       * Keep head brighter, but do not make it a dot.
-       */
-      let a0 = (0.060 + 0.28 * Math.pow(t0, 1.35)) * fadeFactor * zoomAlphaBoost;
-      let a1 = (0.100 + 0.44 * Math.pow(t1, 1.18)) * fadeFactor * zoomAlphaBoost;
-
-      if (particlesColoredBySpeed()) {
-        a0 = (0.090 + 0.38 * Math.pow(t0, 1.30)) * fadeFactor * zoomAlphaBoost;
-        a1 = (0.145 + 0.62 * Math.pow(t1, 1.12)) * fadeFactor * zoomAlphaBoost;
-      }
-
-      a0 = Math.min(a0, particlesColoredBySpeed() ? 0.62 : 0.42);
-      a1 = Math.min(a1, particlesColoredBySpeed() ? 0.82 : 0.58);
-
-      const c0 = particleColor01(speed, a0);
-      const c1 = particleColor01(speed, a1);
-
-      pushQuad(q0, q1, c0, c1);
+    if (
+      !Number.isFinite(q0.lon) || !Number.isFinite(q0.lat) ||
+      !Number.isFinite(q1.lon) || !Number.isFinite(q1.lat)
+    ) {
+      continue;
     }
+
+    const fadeFactor = Math.min(1.0, (p.fadeAge || 0) / 10.0);
+    const speed = q1.speed || 0.0;
+
+    /*
+     * Stronger tail visibility.
+     * The tail should be visible, not vanish at low zoom.
+     */
+    let tailAlpha = 0.22 * fadeFactor * zoomAlphaBoost;
+    let headAlpha = 0.48 * fadeFactor * zoomAlphaBoost;
+
+    if (particlesColoredBySpeed()) {
+      tailAlpha = 0.30 * fadeFactor * zoomAlphaBoost;
+      headAlpha = 0.72 * fadeFactor * zoomAlphaBoost;
+    }
+
+    tailAlpha = Math.min(tailAlpha, particlesColoredBySpeed() ? 0.50 : 0.38);
+    headAlpha = Math.min(headAlpha, particlesColoredBySpeed() ? 0.86 : 0.62);
+
+    const c0 = particleColor01(speed, tailAlpha);
+    const c1 = particleColor01(speed, headAlpha);
+
+    pushQuad(q0, q1, c0, c1);
   }
 
   return {
@@ -1063,7 +1058,6 @@ function buildParticleBuffers() {
     count: sides.length
   };
 }
-
 
 function uploadAndDrawParticles(gl, matrix) {
   if (!GLState.ready || !GLState.particleProgram) return;
@@ -1094,12 +1088,11 @@ function uploadAndDrawParticles(gl, matrix) {
   let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
 
   /*
-   * Keep low-zoom particles visible.
-   * Do not shrink below visibility threshold.
+   * Keep one-dash particles visible at low zoom.
    */
-  if (z <= 4.8) widthPx *= 1.05;
-  else if (z <= 5.5) widthPx *= 1.00;
-  else if (z <= 6.5) widthPx *= 0.96;
+  if (z <= 4.8) widthPx *= 1.18;
+  else if (z <= 5.5) widthPx *= 1.10;
+  else if (z <= 6.5) widthPx *= 1.02;
   else if (z >= 8.5) widthPx *= 0.98;
 
   gl.useProgram(GLState.particleProgram);
