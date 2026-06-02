@@ -758,9 +758,9 @@ function resetOneParticle(p) {
     p.lat = q.lat;
   }
 
-  p.age = Math.floor(Math.random() * 35);
-  p.maxAge = 95 + Math.floor(Math.random() * 70);
-  p.fadeAge = Math.floor(Math.random() * 8);
+  p.age = Math.floor(Math.random() * 60);
+  p.maxAge = 220 + Math.floor(Math.random() * 160);
+  p.fadeAge = Math.floor(Math.random() * 10);
   p.spawnedReplacement = false;
   p.trail = [{ lon: p.lon, lat: p.lat, speed: 0.0 }];
 }
@@ -788,15 +788,15 @@ function particleTrailMax() {
 
   /*
    * History length for optimized curved trails.
-   * Low zoom needs much longer history so tails remain visible.
+   * Low zoom uses longer history, but not excessive.
    */
-  if (z <= 4.8) return 180;
-  if (z <= 5.5) return 160;
-  if (z <= 6.5) return 140;
-  if (z <= 7.5) return 70;
-  if (z <= 8.5) return 40;
+  if (z <= 4.8) return 90;
+  if (z <= 5.5) return 80;
+  if (z <= 6.5) return 70;
+  if (z <= 7.5) return 36;
+  if (z <= 8.5) return 24;
 
-  return 24;
+  return 18;
 }
 
 function particleFlowScale() {
@@ -854,7 +854,7 @@ function updateParticles() {
      * Pre-spawn replacement before this particle dies.
      * This keeps the field continuous without making particles live too long.
      */
-    if (!p.spawnedReplacement && p.age > p.maxAge - 22 && particles.length < target * 1.10) {
+    if (!p.spawnedReplacement && p.age > p.maxAge - 45 && particles.length < target * 1.08) {
       const np = {};
       resetOneParticle(np);
       np.fadeAge = 0;
