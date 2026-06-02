@@ -539,15 +539,15 @@ function vectorAt(lon, lat) {
 }
 
 function particleTargetCount() {
-  const base = Number(els.particleDensity ? els.particleDensity.value : 800);
+  const base = Number(els.particleDensity ? els.particleDensity.value : 1400);
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
 
-  if (z <= 5.0) mul = 0.50;
-  else if (z < 9.0) mul = 0.50 + (z - 5.0) * (0.50 / 4.0);
+  if (z <= 5.0) mul = 0.85;
+  else if (z < 9.0) mul = 0.85 + (z - 5.0) * (0.15 / 4.0);
 
-  return Math.max(150, Math.round(base * mul));
+  return Math.max(400, Math.round(base * mul));
 }
 
 function randomValidParticlePoint() {
@@ -620,19 +620,22 @@ function resetParticles() {
 }
 
 
+
 function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * At low zoom, geographic displacement becomes very short in screen pixels.
-   * Keep a longer map-fixed history so tails remain visible when zoomed out.
+   * Map-fixed WebGL trails need longer history at low zoom,
+   * because geographic displacement projects to fewer screen pixels.
    */
-  if (z <= 5.0) return currentVar === "current_speed" ? 34 : 30;
-  if (z <= 6.0) return currentVar === "current_speed" ? 28 : 24;
-  if (z <= 7.0) return currentVar === "current_speed" ? 22 : 19;
-  if (z <= 8.0) return currentVar === "current_speed" ? 16 : 14;
+  if (z <= 4.5) return currentVar === "current_speed" ? 95 : 85;
+  if (z <= 5.0) return currentVar === "current_speed" ? 82 : 72;
+  if (z <= 5.8) return currentVar === "current_speed" ? 68 : 58;
+  if (z <= 6.6) return currentVar === "current_speed" ? 52 : 44;
+  if (z <= 7.4) return currentVar === "current_speed" ? 38 : 32;
+  if (z <= 8.3) return currentVar === "current_speed" ? 26 : 22;
 
-  return currentVar === "current_speed" ? 11 : 9;
+  return currentVar === "current_speed" ? 16 : 14;
 }
 
 function particleFlowScale() {
@@ -777,11 +780,13 @@ function buildParticleBuffers() {
    * At low zoom, lines become visually tiny.
    * Use stronger alpha when zoomed out, but keep head/tail natural.
    */
-  let zoomAlphaBoost = 1.0;
-  if (z <= 5.0) zoomAlphaBoost = 1.85;
-  else if (z <= 6.0) zoomAlphaBoost = 1.55;
-  else if (z <= 7.0) zoomAlphaBoost = 1.30;
-  else if (z <= 8.0) zoomAlphaBoost = 1.12;
+  let zoomAlphaBoost = 1.35;
+  if (z <= 4.5) zoomAlphaBoost = 4.20;
+  else if (z <= 5.0) zoomAlphaBoost = 3.70;
+  else if (z <= 5.8) zoomAlphaBoost = 3.10;
+  else if (z <= 6.6) zoomAlphaBoost = 2.55;
+  else if (z <= 7.4) zoomAlphaBoost = 2.05;
+  else if (z <= 8.3) zoomAlphaBoost = 1.65;
 
   for (const p of particles) {
     if (!p || !p.trail || p.trail.length < 2) continue;
@@ -807,16 +812,16 @@ function buildParticleBuffers() {
        * Smooth tail-to-head alpha gradient.
        * No artificial dot at the head.
        */
-      let a0 = (0.030 + 0.42 * Math.pow(t0, 1.55)) * fadeFactor * zoomAlphaBoost;
-      let a1 = (0.055 + 0.72 * Math.pow(t1, 1.35)) * fadeFactor * zoomAlphaBoost;
+      let a0 = (0.055 + 0.58 * Math.pow(t0, 1.35)) * fadeFactor * zoomAlphaBoost;
+      let a1 = (0.090 + 0.92 * Math.pow(t1, 1.18)) * fadeFactor * zoomAlphaBoost;
 
       if (currentVar === "current_speed") {
-        a0 = (0.050 + 0.48 * Math.pow(t0, 1.50)) * fadeFactor * zoomAlphaBoost;
-        a1 = (0.085 + 0.82 * Math.pow(t1, 1.25)) * fadeFactor * zoomAlphaBoost;
+        a0 = (0.075 + 0.66 * Math.pow(t0, 1.30)) * fadeFactor * zoomAlphaBoost;
+        a1 = (0.120 + 1.05 * Math.pow(t1, 1.12)) * fadeFactor * zoomAlphaBoost;
       }
 
-      a0 = Math.min(a0, 0.72);
-      a1 = Math.min(a1, currentVar === "current_speed" ? 0.95 : 0.82);
+      a0 = Math.min(a0, 0.88);
+      a1 = Math.min(a1, currentVar === "current_speed" ? 1.0 : 0.95);
 
       const speed = q1.speed || 0.0;
 
