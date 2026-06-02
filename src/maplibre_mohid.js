@@ -546,7 +546,7 @@ function vectorAt(lon, lat) {
 }
 
 function particleTargetCount() {
-  const base = Number(els.particleDensity ? els.particleDensity.value : 900);
+  const base = Number(els.particleDensity ? els.particleDensity.value : 1300);
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
@@ -554,7 +554,7 @@ function particleTargetCount() {
   if (z <= 5.0) mul = 0.55;
   else if (z < 9.0) mul = 0.55 + (z - 5.0) * (0.45 / 4.0);
 
-  return Math.max(250, Math.round(base * mul));
+  return Math.max(450, Math.round(base * mul));
 }
 
 function randomValidParticlePoint() {
@@ -604,8 +604,8 @@ function resetOneParticle(p) {
     p.lat = q.lat;
   }
 
-  p.age = Math.floor(Math.random() * 60);
-  p.maxAge = 130 + Math.floor(Math.random() * 130);
+  p.age = Math.floor(Math.random() * 120);
+  p.maxAge = 260 + Math.floor(Math.random() * 220);
   p.fadeAge = 0;
   p.trail = [{ lon: p.lon, lat: p.lat, speed: 0.0 }];
 }
@@ -671,8 +671,7 @@ function updateParticles() {
   const target = particleTargetCount();
 
   if (particles.length < target * 0.75 || particles.length > target * 1.25) {
-    resetParticles();
-    return;
+    replenishParticlesForView();
   }
 
   const now = performance.now();
@@ -686,7 +685,7 @@ function updateParticles() {
   const dt = particleFlowScale() * stepScale;
 
   for (const p of particles) {
-    if (!p || p.age > p.maxAge + 34) {
+    if (!p || p.age > p.maxAge + 120) {
       resetOneParticle(p);
       continue;
     }
@@ -964,6 +963,33 @@ function uploadAndDrawParticles(gl, matrix) {
 
   map.triggerRepaint();
 }
+
+function replenishParticlesForView() {
+  if (!currentU || !currentV || !grid) return;
+
+  const target = particleTargetCount();
+
+  /*
+   * Do not clear all old particles after pan/zoom.
+   * Keep existing particles so they fade naturally,
+   * then add new particles for the current view.
+   */
+  const maxKeep = Math.round(target * 1.15);
+
+  if (particles.length > maxKeep) {
+    particles = particles.slice(particles.length - maxKeep);
+  }
+
+  while (particles.length < target) {
+    const p = {};
+    resetOneParticle(p);
+    p.fadeAge = 0;
+    particles.push(p);
+  }
+
+  map.triggerRepaint();
+}
+
 
 function startParticles() {
   particleRunning = true;
@@ -1348,12 +1374,11 @@ function bindEvents() {
       if (els.currentOverlay && !els.currentOverlay.checked) return;
 
       /*
-       * Re-seed particles immediately after pan/zoom so the visible domain
-       * is filled again. Each particle fades in through fadeAge.
+       * After pan/zoom, do not wipe particles.
+       * Keep existing trails and softly add particles for the new view.
        */
-      resetParticles();
+      replenishParticlesForView();
       startParticles();
-      map.triggerRepaint();
     };
 
     map.on("moveend", refreshParticlesForView);
