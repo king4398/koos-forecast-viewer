@@ -310,7 +310,7 @@ void main() {
 `;
 
 const PARTICLE_FS = `
-precision mediump float;
+precision highp float;
 
 uniform float u_width;
 
