@@ -30,14 +30,10 @@ let particles = [];
 let particleRunning = false;
 let lastParticleTime = 0;
 
-let currentU = null;
-let currentV = null;
 
 let particleCanvas = null;
 let particleCtx = null;
-let particles = [];
 let particleAnimId = null;
-let particleRunning = false;
 
 const GLState = {
   gl: null,
