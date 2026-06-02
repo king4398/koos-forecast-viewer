@@ -31,6 +31,10 @@ let particleRunning = false;
 let lastParticleTime = 0;
 let isMapInteracting = false;
 
+let particleCanvas = null;
+let particleCtx = null;
+let particleAnimId = null;
+
 
 let particleCanvas = null;
 let particleCtx = null;
@@ -532,7 +536,7 @@ function makeMohidLayer() {
         gl.drawArrays(gl.LINES, 0, GLState.meshVertexCount);
       }
 
-      drawWebglParticles(gl, matrix);
+      // Particles are drawn on a screen-space canvas, Windy/SCHISM style.
     }
   };
 }
@@ -769,6 +773,19 @@ function bindEvents() {
   document.querySelectorAll('input[name="basemap"]').forEach(r => {
     r.addEventListener("change", () => setBasemap(r.value));
   });
+
+
+  if (map && !map.__mohidScreenParticleBound) {
+    map.__mohidScreenParticleBound = true;
+
+    map.on("moveend", () => {
+      resetParticles();
+    });
+
+    map.on("zoomend", () => {
+      resetParticles();
+    });
+  }
 
   if (map && !map.__mohidParticleInteractionBound) {
     map.__mohidParticleInteractionBound = true;
@@ -1459,6 +1476,299 @@ function startWebglParticles() {
   particleRunning = true;
   if (!particles.length) resetParticles();
   map.triggerRepaint();
+}
+
+
+
+function initScreenParticleCanvas() {
+  if (particleCanvas) return;
+
+  particleCanvas = document.createElement("canvas");
+  particleCanvas.id = "particle-canvas";
+  document.body.appendChild(particleCanvas);
+
+  particleCtx = particleCanvas.getContext("2d");
+
+  resizeScreenParticleCanvas();
+
+  window.addEventListener("resize", resizeScreenParticleCanvas);
+  if (map) map.on("resize", resizeScreenParticleCanvas);
+}
+
+function resizeScreenParticleCanvas() {
+  if (!particleCanvas || !particleCtx) return;
+
+  const rect = map
+    ? map.getContainer().getBoundingClientRect()
+    : { width: window.innerWidth, height: window.innerHeight };
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(rect.width));
+  const h = Math.max(1, Math.round(rect.height));
+
+  particleCanvas.width = Math.max(1, Math.round(w * dpr));
+  particleCanvas.height = Math.max(1, Math.round(h * dpr));
+
+  particleCanvas.style.width = w + "px";
+  particleCanvas.style.height = h + "px";
+  particleCanvas.style.left = "0";
+  particleCanvas.style.top = "0";
+
+  particleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  clearScreenParticles();
+}
+
+function clearScreenParticles() {
+  if (!particleCtx || !map) return;
+  const rect = map.getContainer().getBoundingClientRect();
+  particleCtx.clearRect(0, 0, rect.width, rect.height);
+}
+
+function resetParticles() {
+  particles = [];
+
+  if (!currentU || !currentV || !grid || !grid.validCellIndices) return;
+
+  const n = particleTargetCount();
+
+  for (let i = 0; i < n; i++) {
+    const p = {};
+    resetOneParticle(p);
+    particles.push(p);
+  }
+}
+
+function resetOneParticle(p) {
+  const q = randomValidParticlePoint();
+
+  if (!q) {
+    p.lon = 125.0;
+    p.lat = 36.0;
+  } else {
+    p.lon = q.lon;
+    p.lat = q.lat;
+  }
+
+  p.age = Math.floor(Math.random() * 80);
+  p.maxAge = 140 + Math.floor(Math.random() * 140);
+  p.fadeAge = Math.floor(Math.random() * 10);
+}
+
+function randomValidParticlePoint() {
+  if (!grid || !grid.validCellIndices || grid.validCellIndices.length === 0) return null;
+
+  const b = map ? map.getBounds() : null;
+
+  for (let k = 0; k < 800; k++) {
+    const cell = grid.validCellIndices[Math.floor(Math.random() * grid.validCellIndices.length)];
+    const lon = grid.lon[cell];
+    const lat = grid.lat[cell];
+
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+    if (b) {
+      if (
+        lon < b.getWest() || lon > b.getEast() ||
+        lat < b.getSouth() || lat > b.getNorth()
+      ) {
+        continue;
+      }
+    }
+
+    if (vectorAt(lon, lat)) {
+      return { lon, lat };
+    }
+  }
+
+  const cell = grid.validCellIndices[Math.floor(Math.random() * grid.validCellIndices.length)];
+  return { lon: grid.lon[cell], lat: grid.lat[cell] };
+}
+
+function particleTargetCount() {
+  const base = Number(els.particleDensity ? els.particleDensity.value : 800);
+  const z = map ? map.getZoom() : 6.0;
+
+  let mul = 1.0;
+  if (z <= 5.0) mul = 0.50;
+  else if (z < 9.0) mul = 0.50 + (z - 5.0) * 0.125;
+
+  return Math.max(180, Math.round(base * mul));
+}
+
+function particleFlowScale() {
+  const base = 0.005;
+  if (!map) return base;
+
+  const z = map.getZoom();
+  const factor = Math.pow(0.75, Math.max(0, z - 7.0));
+
+  return Math.max(base * 0.20, base * factor);
+}
+
+function speedToCanvasColor(spd, alpha) {
+  const vm = meta.variables.current_speed || { vmin: 0.0, vmax: 1.0 };
+
+  let t = (spd - vm.vmin) / Math.max(1e-12, vm.vmax - vm.vmin);
+  if (!Number.isFinite(t)) t = 0.0;
+  t = Math.max(0.0, Math.min(1.0, t));
+
+  const stops = [
+    [0.05, 0.18, 0.95],
+    [0.05, 0.62, 1.00],
+    [0.10, 0.78, 0.42],
+    [0.92, 0.86, 0.22],
+    [0.95, 0.55, 0.10],
+    [0.82, 0.12, 0.08]
+  ];
+
+  const x = t * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.max(0, Math.floor(x)));
+  const f = x - i;
+
+  const a = stops[i];
+  const b = stops[i + 1];
+
+  const r = Math.round(255 * (a[0] * (1 - f) + b[0] * f));
+  const g = Math.round(255 * (a[1] * (1 - f) + b[1] * f));
+  const bb = Math.round(255 * (a[2] * (1 - f) + b[2] * f));
+
+  return `rgba(${r},${g},${bb},${alpha})`;
+}
+
+function particleCanvasColor(spd) {
+  if (currentVar === "current_speed") {
+    return speedToCanvasColor(spd, 0.68);
+  }
+  return "rgba(235,235,235,0.48)";
+}
+
+function startScreenParticles() {
+  if (particleAnimId !== null) {
+    cancelAnimationFrame(particleAnimId);
+    particleAnimId = null;
+  }
+
+  particleRunning = true;
+  resetParticles();
+
+  function step() {
+    particleAnimId = requestAnimationFrame(step);
+
+    if (!particleRunning || !particleCtx || !map || !currentU || !currentV) return;
+
+    const rect = map.getContainer().getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+
+    if (els.currentOverlay && !els.currentOverlay.checked) {
+      clearScreenParticles();
+      return;
+    }
+
+    /*
+     * Windy-like screen-space tail:
+     * Previous segments stay on the screen and fade out.
+     * They are not reprojected with the map.
+     */
+    particleCtx.globalCompositeOperation = "destination-out";
+    particleCtx.fillStyle = "rgba(0,0,0,0.10)";
+    particleCtx.fillRect(0, 0, width, height);
+
+    particleCtx.globalCompositeOperation = "source-over";
+    particleCtx.lineCap = "round";
+
+    const target = particleTargetCount();
+    if (particles.length < target * 0.60 || particles.length > target * 1.35) {
+      resetParticles();
+    }
+
+    const dt = particleFlowScale();
+
+    for (const p of particles) {
+      if (!p || p.age > p.maxAge) {
+        resetOneParticle(p);
+        continue;
+      }
+
+      const vec = vectorAt(p.lon, p.lat);
+
+      if (!vec) {
+        resetOneParticle(p);
+        continue;
+      }
+
+      const oldLon = p.lon;
+      const oldLat = p.lat;
+
+      const latRad = p.lat * Math.PI / 180.0;
+      let coslat = Math.cos(latRad);
+      if (Math.abs(coslat) < 1e-6) coslat = 1e-6;
+
+      const newLon = p.lon + (vec.u * dt) / coslat;
+      const newLat = p.lat + vec.v * dt;
+
+      if (!vectorAt(newLon, newLat)) {
+        resetOneParticle(p);
+        continue;
+      }
+
+      p.lon = newLon;
+      p.lat = newLat;
+      p.age += 1;
+
+      const a = map.project([oldLon, oldLat]);
+      const b = map.project([newLon, newLat]);
+
+      if (
+        b.x < -80 || b.x > width + 80 ||
+        b.y < -80 || b.y > height + 80
+      ) {
+        resetOneParticle(p);
+        continue;
+      }
+
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      let len = Math.sqrt(dx * dx + dy * dy);
+
+      if (!Number.isFinite(len) || len < 0.05) {
+        dx = vec.u;
+        dy = vec.v;
+        len = Math.sqrt(dx * dx + dy * dy);
+      }
+
+      if (!Number.isFinite(len) || len <= 0.0) continue;
+
+      dx /= len;
+      dy /= len;
+
+      const tSpeed = Math.max(0.0, Math.min(1.0, vec.speed / 1.0));
+      const segLen = 2.0 + 13.0 * Math.pow(tSpeed, 0.75);
+
+      const x1 = b.x;
+      const y1 = b.y;
+      const x0 = x1 - dx * segLen;
+      const y0 = y1 - dy * segLen;
+
+      p.fadeAge = (p.fadeAge || 0) + 1;
+      const fade = Math.min(1.0, p.fadeAge / 18.0);
+
+      particleCtx.strokeStyle = particleCanvasColor(vec.speed);
+      particleCtx.globalAlpha = fade;
+      particleCtx.lineWidth = currentVar === "current_speed"
+        ? 1.15 + 0.55 * tSpeed
+        : 1.0 + 0.35 * tSpeed;
+
+      particleCtx.beginPath();
+      particleCtx.moveTo(x0, y0);
+      particleCtx.lineTo(x1, y1);
+      particleCtx.stroke();
+
+      particleCtx.globalAlpha = 1.0;
+    }
+  }
+
+  particleAnimId = requestAnimationFrame(step);
 }
 
 
