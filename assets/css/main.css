@@ -292,3 +292,18 @@ select option {
     max-width: 68px;
   }
 }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 0 4px;
+  color: #c9d8ea;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.check-row input {
+  transform: scale(1.1);
+}

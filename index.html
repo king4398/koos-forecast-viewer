@@ -30,6 +30,11 @@
     <label class="control-label" for="opacity-slider">Opacity</label>
     <input id="opacity-slider" type="range" min="0" max="1" step="0.05" value="0.82" />
 
+    <label class="check-row">
+      <span>Mesh overlay</span>
+      <input id="mesh-overlay-check" type="checkbox" />
+    </label>
+
     <label class="control-label">Base Map</label>
     <div class="radio-row">
       <label><input type="radio" name="basemap" value="light" checked /> Light</label>
@@ -48,7 +53,7 @@
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="src/app.js?v=curvi_grid_01"></script>
+  <script src="src/maplibre_mohid.js?v=webgl_mesh_01"></script>
 
   <div id="ust21-logo-overlay">
     <div id="ust21-logo-title">UST21 수치예보팀</div>
