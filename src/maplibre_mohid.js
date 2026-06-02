@@ -787,16 +787,16 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * History length.
-   * Curved rendering below samples a few points from this history.
+   * History length for optimized curved trails.
+   * Low zoom needs much longer history so tails remain visible.
    */
-  if (z <= 4.8) return 36;
-  if (z <= 5.5) return 32;
-  if (z <= 6.5) return 28;
-  if (z <= 7.5) return 24;
-  if (z <= 8.5) return 20;
+  if (z <= 4.8) return 180;
+  if (z <= 5.5) return 160;
+  if (z <= 6.5) return 140;
+  if (z <= 7.5) return 70;
+  if (z <= 8.5) return 40;
 
-  return 18;
+  return 24;
 }
 
 function particleFlowScale() {
@@ -1020,9 +1020,10 @@ function buildParticleBuffers() {
      * Low zoom needs enough segments to avoid straight-line artifacts.
      */
     let segCount = 4;
-    if (z <= 5.5) segCount = 5;
-    else if (z <= 7.0) segCount = 4;
-    else segCount = 3;
+    if (z <= 5.5) segCount = 8;
+    else if (z <= 6.5) segCount = 6;
+    else if (z <= 7.5) segCount = 5;
+    else segCount = 4;
 
     segCount = Math.min(segCount, n - 1);
 
