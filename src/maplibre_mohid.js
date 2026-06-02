@@ -790,9 +790,9 @@ function particleTrailMax() {
    * History length for one-dash particle rendering.
    * Low zoom needs more history so the dash remains visible.
    */
-  if (z <= 4.8) return 16;
-  if (z <= 5.5) return 15;
-  if (z <= 6.5) return 14;
+  if (z <= 4.8) return 160;
+  if (z <= 5.5) return 150;
+  if (z <= 6.5) return 140;
   if (z <= 7.5) return 13;
   if (z <= 8.5) return 12;
 
