@@ -606,7 +606,7 @@ function resetOneParticle(p) {
 
   p.age = Math.floor(Math.random() * 60);
   p.maxAge = 130 + Math.floor(Math.random() * 130);
-  p.fadeAge = Math.floor(Math.random() * 14);
+  p.fadeAge = 0;
   p.trail = [{ lon: p.lon, lat: p.lat, speed: 0.0 }];
 }
 
@@ -686,7 +686,7 @@ function updateParticles() {
   const dt = particleFlowScale() * stepScale;
 
   for (const p of particles) {
-    if (!p || p.age > p.maxAge) {
+    if (!p || p.age > p.maxAge + 34) {
       resetOneParticle(p);
       continue;
     }
@@ -918,9 +918,16 @@ function uploadAndDrawParticles(gl, matrix) {
    * Quad-line particle width in screen pixels.
    * Wider than GL_LINES, but still natural.
    */
-  let widthPx = currentVar === "current_speed" ? 1.35 : 1.15;
-  if (z <= 5.0) widthPx *= 1.08;
-  else if (z >= 8.5) widthPx *= 0.95;
+  let widthPx = currentVar === "current_speed" ? 1.30 : 1.05;
+
+  /*
+   * Zoomed-out particles should be thinner and cleaner.
+   * Zoomed-in particles can stay slightly thicker.
+   */
+  if (z <= 4.8) widthPx *= 0.72;
+  else if (z <= 5.5) widthPx *= 0.80;
+  else if (z <= 6.5) widthPx *= 0.90;
+  else if (z >= 8.5) widthPx *= 0.98;
 
   gl.useProgram(GLState.particleProgram);
 
@@ -1332,6 +1339,26 @@ function bindEvents() {
   document.querySelectorAll('input[name="basemap"]').forEach(r => {
     r.addEventListener("change", () => setBasemap(r.value));
   });
+
+  if (map && !map.__mohidParticleViewEventsBound) {
+    map.__mohidParticleViewEventsBound = true;
+
+    const refreshParticlesForView = () => {
+      if (!currentU || !currentV || !grid) return;
+      if (els.currentOverlay && !els.currentOverlay.checked) return;
+
+      /*
+       * Re-seed particles immediately after pan/zoom so the visible domain
+       * is filled again. Each particle fades in through fadeAge.
+       */
+      resetParticles();
+      startParticles();
+      map.triggerRepaint();
+    };
+
+    map.on("moveend", refreshParticlesForView);
+    map.on("zoomend", refreshParticlesForView);
+  }
 }
 
 async function boot() {
