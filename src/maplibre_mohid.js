@@ -1019,11 +1019,11 @@ function buildParticleBuffers() {
      * Segment count by zoom.
      * Low zoom needs enough segments to avoid straight-line artifacts.
      */
-    let segCount = 4;
-    if (z <= 5.5) segCount = 8;
-    else if (z <= 6.5) segCount = 6;
-    else if (z <= 7.5) segCount = 5;
-    else segCount = 4;
+    let segCount = 6;
+    if (z <= 5.5) segCount = 12;
+    else if (z <= 6.5) segCount = 10;
+    else if (z <= 7.5) segCount = 8;
+    else segCount = 6;
 
     segCount = Math.min(segCount, n - 1);
 
@@ -1052,7 +1052,8 @@ function buildParticleBuffers() {
        */
       const t0 = f0;
       const t1 = f1;
-      const speed = q1.speed || 0.0;
+      const speed0 = Number.isFinite(q0.speed) ? q0.speed : 0.0;
+      const speed1 = Number.isFinite(q1.speed) ? q1.speed : speed0;
 
       let a0 = (0.10 + 0.28 * Math.pow(t0, 1.25)) * fadeFactor * zoomAlphaBoost;
       let a1 = (0.16 + 0.54 * Math.pow(t1, 1.10)) * fadeFactor * zoomAlphaBoost;
@@ -1065,8 +1066,8 @@ function buildParticleBuffers() {
       a0 = Math.min(a0, particlesColoredBySpeed() ? 0.55 : 0.40);
       a1 = Math.min(a1, particlesColoredBySpeed() ? 0.90 : 0.65);
 
-      const c0 = particleColor01(speed, a0);
-      const c1 = particleColor01(speed, a1);
+      const c0 = particleColor01(speed0, a0);
+      const c1 = particleColor01(speed1, a1);
 
       pushQuad(q0, q1, c0, c1);
     }
