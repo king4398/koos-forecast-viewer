@@ -551,8 +551,8 @@ function particleTargetCount() {
 
   let mul = 1.0;
 
-  if (z <= 5.0) mul = 0.55;
-  else if (z < 9.0) mul = 0.55 + (z - 5.0) * (0.45 / 4.0);
+  if (z <= 5.0) mul = 0.88;
+  else if (z < 9.0) mul = 0.88 + (z - 5.0) * (0.12 / 4.0);
 
   return Math.max(450, Math.round(base * mul));
 }
@@ -647,19 +647,20 @@ function particleTrailMax() {
 
 
 
+
+
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Low zoom needs a little more advection so particles do not look frozen.
-   * High zoom should stay calm.
+   * Low zoom previously looked too long because each advection step projected
+   * into a long visible dash. Keep overview shorter/cleaner.
    */
-  if (z <= 4.5) return 0.018;
-  if (z <= 5.0) return 0.015;
-  if (z <= 5.8) return 0.012;
-  if (z <= 6.6) return 0.009;
-  if (z <= 7.4) return 0.007;
-  if (z <= 8.3) return 0.0058;
+  if (z <= 4.8) return 0.0070;
+  if (z <= 5.4) return 0.0064;
+  if (z <= 6.2) return 0.0058;
+  if (z <= 7.0) return 0.0052;
+  if (z <= 8.0) return 0.0048;
 
   return 0.0048;
 }
