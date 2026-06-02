@@ -787,30 +787,29 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Visible but not stream-line long.
-   * Segment count is trailMax - 1.
+   * Visible tail without returning to long streamline.
    */
-  if (z <= 4.8) return 7;
-  if (z <= 5.5) return 7;
-  if (z <= 6.5) return 8;
-  if (z <= 7.5) return 9;
-  if (z <= 8.5) return 10;
+  if (z <= 4.8) return 10;
+  if (z <= 5.5) return 10;
+  if (z <= 6.5) return 11;
+  if (z <= 7.5) return 11;
+  if (z <= 8.5) return 12;
 
-  return 11;
+  return 12;
 }
 
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Slightly faster at low zoom.
-   * High zoom remains calm.
+   * Calm speed.
+   * Low zoom is only slightly faster, not over-accelerated.
    */
-  if (z <= 4.8) return 0.0120;
-  if (z <= 5.4) return 0.0105;
-  if (z <= 6.2) return 0.0084;
-  if (z <= 7.0) return 0.0065;
-  if (z <= 8.0) return 0.0051;
+  if (z <= 4.8) return 0.0082;
+  if (z <= 5.4) return 0.0074;
+  if (z <= 6.2) return 0.0064;
+  if (z <= 7.0) return 0.0055;
+  if (z <= 8.0) return 0.0049;
 
   return 0.0048;
 }
@@ -827,7 +826,11 @@ function updateParticles() {
   }
 
   if (particles.length > target * 1.15) {
-    particles = particles.slice(particles.length - Math.round(target * 1.03));
+    /*
+     * Keep mature particles with visible trails.
+     * New replacement particles are pushed at the end and have almost no trail yet.
+     */
+    particles = particles.slice(0, Math.round(target * 1.03));
   }
 
   const now = performance.now();
@@ -1094,9 +1097,9 @@ function uploadAndDrawParticles(gl, matrix) {
   /*
    * Thin anti-aliased rounded dashes.
    */
-  if (z <= 4.8) widthPx *= 0.68;
-  else if (z <= 5.5) widthPx *= 0.74;
-  else if (z <= 6.5) widthPx *= 0.84;
+  if (z <= 4.8) widthPx *= 0.82;
+  else if (z <= 5.5) widthPx *= 0.88;
+  else if (z <= 6.5) widthPx *= 0.92;
   else if (z >= 8.5) widthPx *= 0.98;
 
   gl.useProgram(GLState.particleProgram);
