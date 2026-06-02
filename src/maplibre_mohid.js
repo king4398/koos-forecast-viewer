@@ -677,15 +677,15 @@ function particleTargetCount() {
    * Fixed Mid density.
    * UI particle density selector was removed.
    */
-  const base = 1400;
+  const base = 1200;
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
 
-  if (z <= 5.0) mul = 0.86;
-  else if (z < 9.0) mul = 0.86 + (z - 5.0) * (0.14 / 4.0);
+  if (z <= 5.0) mul = 0.82;
+  else if (z < 9.0) mul = 0.82 + (z - 5.0) * (0.18 / 4.0);
 
-  return Math.max(600, Math.round(base * mul));
+  return Math.max(520, Math.round(base * mul));
 }
 
 function jitterParticlePoint(lon, lat) {
@@ -758,8 +758,8 @@ function resetOneParticle(p) {
     p.lat = q.lat;
   }
 
-  p.age = Math.floor(Math.random() * 45);
-  p.maxAge = 115 + Math.floor(Math.random() * 85);
+  p.age = Math.floor(Math.random() * 35);
+  p.maxAge = 95 + Math.floor(Math.random() * 70);
   p.fadeAge = Math.floor(Math.random() * 8);
   p.spawnedReplacement = false;
   p.trail = [{ lon: p.lon, lat: p.lat, speed: 0.0 }];
@@ -787,36 +787,31 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Map-fixed WebGL trails need longer history at low zoom,
-   * because geographic displacement projects to fewer screen pixels.
+   * Performance-first Windy-like dash.
+   * Low zoom: short to avoid streamlines and lag.
+   * High zoom: about 1/3 longer than overview.
    */
-  if (z <= 4.5) return currentVar === "current_speed" ? 95 : 85;
-  if (z <= 5.0) return currentVar === "current_speed" ? 82 : 72;
-  if (z <= 5.8) return currentVar === "current_speed" ? 68 : 58;
-  if (z <= 6.6) return currentVar === "current_speed" ? 52 : 44;
-  if (z <= 7.4) return currentVar === "current_speed" ? 38 : 32;
-  if (z <= 8.3) return currentVar === "current_speed" ? 26 : 22;
+  if (z <= 4.8) return 3;
+  if (z <= 5.5) return 3;
+  if (z <= 6.5) return 4;
+  if (z <= 7.5) return 4;
+  if (z <= 8.5) return 5;
 
-  return currentVar === "current_speed" ? 16 : 14;
+  return 6;
 }
-
-
-
-
-
 
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Performance-first advection.
-   * Slightly faster at low zoom, stable at high zoom.
+   * Slightly faster at low zoom.
+   * High zoom remains calm.
    */
-  if (z <= 4.8) return 0.0086;
-  if (z <= 5.4) return 0.0078;
-  if (z <= 6.2) return 0.0067;
-  if (z <= 7.0) return 0.0057;
-  if (z <= 8.0) return 0.0049;
+  if (z <= 4.8) return 0.0120;
+  if (z <= 5.4) return 0.0105;
+  if (z <= 6.2) return 0.0084;
+  if (z <= 7.0) return 0.0065;
+  if (z <= 8.0) return 0.0051;
 
   return 0.0048;
 }
@@ -832,8 +827,8 @@ function updateParticles() {
     return;
   }
 
-  if (particles.length > target * 1.20) {
-    particles = particles.slice(particles.length - Math.round(target * 1.05));
+  if (particles.length > target * 1.15) {
+    particles = particles.slice(particles.length - Math.round(target * 1.03));
   }
 
   const now = performance.now();
@@ -856,7 +851,7 @@ function updateParticles() {
      * Pre-spawn replacement before this particle dies.
      * This keeps the field continuous without making particles live too long.
      */
-    if (!p.spawnedReplacement && p.age > p.maxAge - 28 && particles.length < target * 1.12) {
+    if (!p.spawnedReplacement && p.age > p.maxAge - 22 && particles.length < target * 1.10) {
       const np = {};
       resetOneParticle(np);
       np.fadeAge = 0;
@@ -943,9 +938,9 @@ function particleColor01(speed, alpha) {
   /*
    * Same visual rule as KOP/SCHISM:
    * - scalar overlay particles: rgba(235,235,235,alpha)
-   * - current_speed particles: speed colormap
+   * - current_speed / current_particles: speed colormap particles
    */
-  if (currentVar === "current_speed") {
+  if (particlesColoredBySpeed()) {
     const c = speedToRgb01(speed);
     return [c[0], c[1], c[2], alpha];
   }
@@ -1039,13 +1034,13 @@ function buildParticleBuffers() {
       let a0 = (0.035 + 0.24 * Math.pow(t0, 1.45)) * fadeFactor * zoomAlphaBoost;
       let a1 = (0.060 + 0.40 * Math.pow(t1, 1.25)) * fadeFactor * zoomAlphaBoost;
 
-      if (currentVar === "current_speed") {
+      if (particlesColoredBySpeed()) {
         a0 = (0.060 + 0.34 * Math.pow(t0, 1.40)) * fadeFactor * zoomAlphaBoost;
         a1 = (0.095 + 0.58 * Math.pow(t1, 1.20)) * fadeFactor * zoomAlphaBoost;
       }
 
-      a0 = Math.min(a0, currentVar === "current_speed" ? 0.55 : 0.34);
-      a1 = Math.min(a1, currentVar === "current_speed" ? 0.78 : 0.50);
+      a0 = Math.min(a0, particlesColoredBySpeed() ? 0.55 : 0.34);
+      a1 = Math.min(a1, particlesColoredBySpeed() ? 0.78 : 0.50);
 
       const c0 = particleColor01(speed, a0);
       const c1 = particleColor01(speed, a1);
@@ -1091,16 +1086,15 @@ function uploadAndDrawParticles(gl, matrix) {
    * Quad-line particle width in screen pixels.
    * Wider than GL_LINES, but still natural.
    */
-  let widthPx = currentVar === "current_speed" ? 0.78 : 0.66;
+  let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
 
   /*
    * Thin anti-aliased rounded dashes.
-   * Keep particles light for performance and cleaner visual density.
    */
-  if (z <= 4.8) widthPx *= 0.55;
-  else if (z <= 5.5) widthPx *= 0.62;
-  else if (z <= 6.5) widthPx *= 0.75;
-  else if (z >= 8.5) widthPx *= 0.92;
+  if (z <= 4.8) widthPx *= 0.58;
+  else if (z <= 5.5) widthPx *= 0.66;
+  else if (z <= 6.5) widthPx *= 0.80;
+  else if (z >= 8.5) widthPx *= 0.96;
 
   gl.useProgram(GLState.particleProgram);
 
