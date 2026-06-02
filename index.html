@@ -36,10 +36,22 @@
       <input id="mesh-overlay-check" type="checkbox" />
     </label>
 
+    <label class="check-row">
+      <span>Current particles</span>
+      <input id="current-overlay-check" type="checkbox" checked />
+    </label>
+
+    <label class="control-label" for="particle-density-select">Particles</label>
+    <select id="particle-density-select">
+      <option value="700">Low</option>
+      <option value="1300" selected>Mid</option>
+      <option value="2200">High</option>
+    </select>
+
     <label class="control-label">Base Map</label>
     <div class="radio-row">
-      <label><input type="radio" name="basemap" value="light" checked /> Light</label>
-      <label><input type="radio" name="basemap" value="satellite" /> Satellite</label>
+      <label><input type="radio" name="basemap" value="light" /> Light</label>
+      <label><input type="radio" name="basemap" value="satellite" checked /> Satellite</label>
     </div>
 
     <div id="status-line">Loading...</div>
@@ -54,7 +66,7 @@
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="src/maplibre_mohid.js?v=smooth_vertex_01"></script>
+  <script src="src/maplibre_mohid.js?v=particles_01"></script>
 
   <div id="ust21-logo-overlay">
     <div id="ust21-logo-title">UST21 수치예보팀</div>
