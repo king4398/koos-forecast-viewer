@@ -10,7 +10,9 @@ const els = {
   timeLabel: document.getElementById("time-label"),
   statusLine: document.getElementById("status-line"),
   legendBox: document.getElementById("legend-box"),
-  meshOverlay: document.getElementById("mesh-overlay-check")
+  meshOverlay: document.getElementById("mesh-overlay-check"),
+  currentOverlay: document.getElementById("current-overlay-check"),
+  particleDensity: document.getElementById("particle-density-select")
 };
 
 let map = null;
@@ -20,6 +22,15 @@ let currentVar = "temperature";
 let currentFrame = 0;
 let timer = null;
 let scalarCache = new Map();
+
+let currentU = null;
+let currentV = null;
+
+let particleCanvas = null;
+let particleCtx = null;
+let particles = [];
+let particleAnimId = null;
+let particleRunning = false;
 
 const GLState = {
   gl: null,
@@ -215,6 +226,8 @@ async function loadGrid() {
   const n = nx * ny;
   const nc = cnx * cny;
 
+  const lon = await fetchFloat32(DATA_ROOT + meta.grid.lon_file, n);
+  const lat = await fetchFloat32(DATA_ROOT + meta.grid.lat_file, n);
   const mask = await fetchFloat32(DATA_ROOT + meta.grid.mask_file, n);
   const lonCorner = await fetchFloat32(DATA_ROOT + meta.grid.lon_corner_file, nc);
   const latCorner = await fetchFloat32(DATA_ROOT + meta.grid.lat_corner_file, nc);
@@ -222,6 +235,7 @@ async function loadGrid() {
   const triPositions = [];
   const cornerIndexForVertex = [];
   const edgePositions = [];
+  const validCellIndices = [];
 
   function cornerIndex(j, i) {
     return j * cnx + i;
@@ -265,6 +279,7 @@ async function loadGrid() {
       }
 
       validCells += 1;
+      validCellIndices.push(cell);
 
       pushCorner(triPositions, c00); cornerIndexForVertex.push(c00);
       pushCorner(triPositions, c10); cornerIndexForVertex.push(c10);
@@ -287,7 +302,10 @@ async function loadGrid() {
     cnx,
     cny,
     n,
+    lon,
+    lat,
     validCells,
+    validCellIndices,
     triPositions: new Float32Array(triPositions),
     cornerIndexForVertex: new Uint32Array(cornerIndexForVertex),
     edgePositions: new Float32Array(edgePositions)
@@ -455,7 +473,15 @@ async function setFrame(i) {
   currentFrame = Math.max(0, Math.min(n - 1, Number(i)));
   els.frameSlider.value = String(currentFrame);
 
-  const values = await loadFrame(currentVar, currentFrame);
+  const [values, u, v] = await Promise.all([
+    loadFrame(currentVar, currentFrame),
+    loadFrame("current_u", currentFrame),
+    loadFrame("current_v", currentFrame)
+  ]);
+
+  currentU = u;
+  currentV = v;
+
   const vertexValues = buildVertexValues(values);
 
   const gl = GLState.gl;
@@ -470,6 +496,11 @@ async function setFrame(i) {
   setStatus(`MOHID ${meta.cycle}\n${currentVar} frame ${currentFrame + 1}/${frameCount()}`);
 
   map.triggerRepaint();
+
+  if (particleCanvas) {
+    resetParticles();
+    clearParticleCanvas();
+  }
 }
 
 function fmtLegendNumber(x, digits = 1) {
@@ -636,10 +667,410 @@ function bindEvents() {
     });
   }
 
+  if (els.currentOverlay) {
+    els.currentOverlay.addEventListener("change", () => {
+      if (els.currentOverlay.checked) {
+        resetParticles();
+      } else {
+        clearParticleCanvas();
+      }
+    });
+  }
+
+  if (els.particleDensity) {
+    els.particleDensity.addEventListener("change", () => {
+      resetParticles();
+      clearParticleCanvas();
+    });
+  }
+
+  if (map) {
+    map.on("moveend", () => {
+      resetParticles();
+      clearParticleCanvas();
+    });
+    map.on("zoomend", () => {
+      resetParticles();
+      clearParticleCanvas();
+    });
+  }
+
   document.querySelectorAll('input[name="basemap"]').forEach(r => {
     r.addEventListener("change", () => setBasemap(r.value));
   });
 }
+
+
+function vectorAt(lon, lat) {
+  if (!currentU || !currentV || !grid || !grid.validCellIndices) return null;
+
+  let bestCell = -1;
+  let bestD2 = Infinity;
+  const coslat = Math.max(0.2, Math.cos(lat * Math.PI / 180.0));
+
+  /*
+   * MOHID grid size is small enough for this first stable version.
+   * Search visible particles by nearest wet cell center.
+   * This intentionally mirrors SCHISM's vectorAt() role:
+   *   lon/lat -> u/v/speed
+   */
+  for (let k = 0; k < grid.validCellIndices.length; k++) {
+    const cell = grid.validCellIndices[k];
+    const clon = grid.lon[cell];
+    const clat = grid.lat[cell];
+
+    if (!Number.isFinite(clon) || !Number.isFinite(clat)) continue;
+
+    const dx = (clon - lon) * coslat;
+    const dy = clat - lat;
+    const d2 = dx * dx + dy * dy;
+
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      bestCell = cell;
+    }
+  }
+
+  if (bestCell < 0) return null;
+
+  const u = currentU[bestCell];
+  const v = currentV[bestCell];
+
+  if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
+  if (Math.abs(u) > 20 || Math.abs(v) > 20) return null;
+
+  const speed = Math.hypot(u, v);
+  if (!Number.isFinite(speed)) return null;
+
+  return { u, v, speed };
+}
+
+function initParticleCanvas() {
+  if (particleCanvas) return;
+
+  particleCanvas = document.createElement("canvas");
+  particleCanvas.id = "particle-canvas";
+  document.body.appendChild(particleCanvas);
+
+  particleCtx = particleCanvas.getContext("2d");
+
+  resizeParticleCanvas();
+
+  window.addEventListener("resize", resizeParticleCanvas);
+  if (map) map.on("resize", resizeParticleCanvas);
+}
+
+function resizeParticleCanvas() {
+  if (!particleCanvas || !particleCtx) return;
+
+  const rect = map ? map.getContainer().getBoundingClientRect() : {
+    width: window.innerWidth,
+    height: window.innerHeight
+  };
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(rect.width));
+  const h = Math.max(1, Math.round(rect.height));
+
+  particleCanvas.width = Math.max(1, Math.round(w * dpr));
+  particleCanvas.height = Math.max(1, Math.round(h * dpr));
+  particleCanvas.style.width = w + "px";
+  particleCanvas.style.height = h + "px";
+  particleCanvas.style.left = "0";
+  particleCanvas.style.top = "0";
+
+  particleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  clearParticleCanvas();
+}
+
+function clearParticleCanvas() {
+  if (!particleCtx || !map) return;
+  const rect = map.getContainer().getBoundingClientRect();
+  particleCtx.clearRect(0, 0, rect.width, rect.height);
+}
+
+function effectiveParticleCount() {
+  const base = Number(els.particleDensity ? els.particleDensity.value : 1300);
+  const z = map ? map.getZoom() : 6;
+
+  let mul = 1.0;
+  if (z <= 5) mul = 0.50;
+  else if (z < 9) mul = 0.50 + (z - 5) * (0.50 / 4.0);
+
+  return Math.max(250, Math.round(base * mul));
+}
+
+function randomValidPoint() {
+  if (!grid || !grid.validCellIndices || !grid.validCellIndices.length) return null;
+
+  let bounds = null;
+  if (map) bounds = map.getBounds();
+
+  for (let i = 0; i < 1000; i++) {
+    const cell = grid.validCellIndices[Math.floor(Math.random() * grid.validCellIndices.length)];
+    const lon = grid.lon[cell];
+    const lat = grid.lat[cell];
+
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+    if (bounds) {
+      if (
+        lon < bounds.getWest() || lon > bounds.getEast() ||
+        lat < bounds.getSouth() || lat > bounds.getNorth()
+      ) {
+        continue;
+      }
+    }
+
+    if (vectorAt(lon, lat)) return { lon, lat };
+  }
+
+  const cell = grid.validCellIndices[Math.floor(Math.random() * grid.validCellIndices.length)];
+  return { lon: grid.lon[cell], lat: grid.lat[cell] };
+}
+
+function resetParticle(p) {
+  const pos = randomValidPoint();
+
+  if (!pos) {
+    p.lon = 125.0;
+    p.lat = 36.0;
+  } else {
+    p.lon = pos.lon;
+    p.lat = pos.lat;
+  }
+
+  p.age = Math.floor(Math.random() * 80);
+  p.maxAge = 150 + Math.floor(Math.random() * 130);
+  p.fadeAge = Math.floor(Math.random() * 10);
+  p.trail = [{ lon: p.lon, lat: p.lat }];
+}
+
+function resetParticles() {
+  particles = [];
+
+  if (!currentU || !currentV || !grid) return;
+
+  const n = effectiveParticleCount();
+
+  for (let i = 0; i < n; i++) {
+    const p = {};
+    resetParticle(p);
+    particles.push(p);
+  }
+}
+
+function speedToColor(s) {
+  const vm = meta.variables.current_speed || { vmin: 0, vmax: 1 };
+
+  let t = (s - vm.vmin) / Math.max(1e-12, vm.vmax - vm.vmin);
+  if (!Number.isFinite(t)) t = 0;
+  t = Math.max(0, Math.min(1, t));
+
+  const stops = [
+    [0.05, 0.18, 0.95],
+    [0.05, 0.62, 1.00],
+    [0.10, 0.78, 0.42],
+    [0.92, 0.86, 0.22],
+    [0.95, 0.55, 0.10],
+    [0.82, 0.12, 0.08]
+  ];
+
+  const x = t * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.max(0, Math.floor(x)));
+  const f = x - i;
+  const a = stops[i];
+  const b = stops[i + 1];
+
+  const r = Math.round(255 * (a[0] * (1 - f) + b[0] * f));
+  const g = Math.round(255 * (a[1] * (1 - f) + b[1] * f));
+  const bb = Math.round(255 * (a[2] * (1 - f) + b[2] * f));
+
+  return `rgba(${r},${g},${bb},0.72)`;
+}
+
+function particleColor(speed) {
+  if (currentVar === "current_speed") return speedToColor(speed);
+  return "rgba(235,235,235,0.55)";
+}
+
+function particleFlowScale() {
+  const base = 0.005;
+  if (!map) return base;
+
+  const z = map.getZoom();
+  const factor = Math.pow(0.75, Math.max(0, z - 7.0));
+
+  return Math.max(base * 0.20, base * factor);
+}
+
+function particleTrailLength() {
+  return 3;
+}
+
+function speedBasedParticleDrawLength(spd) {
+  const vm = meta.variables.current_speed || { vmin: 0, vmax: 1 };
+
+  let t = (spd - vm.vmin) / Math.max(1e-12, vm.vmax - vm.vmin);
+  if (!Number.isFinite(t)) t = 0;
+  t = Math.max(0, Math.min(1, t));
+  t = Math.pow(t, 0.75);
+
+  let minLen = 3.5;
+  let maxLen = 18.0;
+
+  if (map) {
+    const z = map.getZoom();
+    let f = 1.0;
+    if (z <= 5.0) f = 0.50;
+    else if (z < 9.0) f = 0.50 + (z - 5.0) * (0.50 / 4.0);
+
+    minLen *= f;
+    maxLen *= f;
+  }
+
+  return minLen + (maxLen - minLen) * t;
+}
+
+function startParticles() {
+  if (particleAnimId !== null) {
+    cancelAnimationFrame(particleAnimId);
+    particleAnimId = null;
+  }
+
+  particleRunning = true;
+  resetParticles();
+
+  function step() {
+    if (!particleRunning) return;
+
+    particleAnimId = requestAnimationFrame(step);
+
+    if (!particleCtx || !map || !currentU || !currentV) return;
+
+    if (els.currentOverlay && !els.currentOverlay.checked) {
+      clearParticleCanvas();
+      return;
+    }
+
+    const rect = map.getContainer().getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+
+    particleCtx.globalCompositeOperation = "destination-out";
+    particleCtx.fillStyle = "rgba(0,0,0,0.10)";
+    particleCtx.fillRect(0, 0, width, height);
+
+    particleCtx.globalCompositeOperation = "source-over";
+    particleCtx.lineCap = "round";
+
+    if (particles.length < effectiveParticleCount() * 0.60) {
+      resetParticles();
+    }
+
+    const trailLen = particleTrailLength();
+
+    for (const p of particles) {
+      if (!p || p.age > p.maxAge) {
+        resetParticle(p);
+        continue;
+      }
+
+      const vec = vectorAt(p.lon, p.lat);
+
+      if (!vec) {
+        resetParticle(p);
+        continue;
+      }
+
+      const latRad = p.lat * Math.PI / 180.0;
+      let coslat = Math.cos(latRad);
+      if (Math.abs(coslat) < 1e-6) coslat = 1e-6;
+
+      const dt = particleFlowScale();
+      const newLon = p.lon + (vec.u * dt) / coslat;
+      const newLat = p.lat + vec.v * dt;
+
+      if (!vectorAt(newLon, newLat)) {
+        resetParticle(p);
+        continue;
+      }
+
+      p.lon = newLon;
+      p.lat = newLat;
+      p.age += 1;
+
+      if (!p.trail) p.trail = [];
+      p.trail.push({ lon: p.lon, lat: p.lat });
+
+      if (p.trail.length > trailLen) {
+        p.trail.shift();
+      }
+
+      const head = map.project([p.lon, p.lat]);
+
+      if (
+        head.x < -80 || head.x > width + 80 ||
+        head.y < -80 || head.y > height + 80
+      ) {
+        resetParticle(p);
+        continue;
+      }
+
+      if (p.trail.length < 2) continue;
+
+      const nTrail = p.trail.length;
+      const qHead = p.trail[nTrail - 1];
+      const qPrev = p.trail[Math.max(0, nTrail - 2)];
+
+      const ptHead = map.project([qHead.lon, qHead.lat]);
+      const ptPrev = map.project([qPrev.lon, qPrev.lat]);
+
+      let dx = ptHead.x - ptPrev.x;
+      let dy = ptHead.y - ptPrev.y;
+      let len = Math.sqrt(dx * dx + dy * dy);
+
+      if (!Number.isFinite(len) || len < 0.05) {
+        const latRad2 = p.lat * Math.PI / 180.0;
+        let coslat2 = Math.cos(latRad2);
+        if (Math.abs(coslat2) < 1e-6) coslat2 = 1e-6;
+
+        dx = vec.u / coslat2;
+        dy = vec.v;
+        len = Math.sqrt(dx * dx + dy * dy);
+      }
+
+      if (!Number.isFinite(len) || len <= 0.0) continue;
+
+      dx /= len;
+      dy /= len;
+
+      const segLen = Math.max(2.0, speedBasedParticleDrawLength(vec.speed) * 0.65);
+
+      const x0 = ptHead.x - dx * segLen;
+      const y0 = ptHead.y - dy * segLen;
+      const x1 = ptHead.x;
+      const y1 = ptHead.y;
+
+      p.fadeAge = (p.fadeAge || 0) + 1;
+      const fadeFactor = Math.min(1.0, p.fadeAge / 18.0);
+
+      particleCtx.strokeStyle = particleColor(vec.speed);
+      particleCtx.globalAlpha = fadeFactor;
+      particleCtx.lineWidth = currentVar === "current_speed" ? 1.25 : 1.05;
+
+      particleCtx.beginPath();
+      particleCtx.moveTo(x0, y0);
+      particleCtx.lineTo(x1, y1);
+      particleCtx.stroke();
+
+      particleCtx.globalAlpha = 1.0;
+    }
+  }
+
+  particleAnimId = requestAnimationFrame(step);
+}
+
 
 async function boot() {
   try {
@@ -661,7 +1092,9 @@ async function boot() {
       updateLegend();
       updateTimeLabel();
 
+      initParticleCanvas();
       await setFrame(0);
+      startParticles();
 
       setStatus(
         `Ready\n` +
