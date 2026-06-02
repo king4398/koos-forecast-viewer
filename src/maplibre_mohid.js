@@ -803,15 +803,15 @@ function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Overall particle advection speed x2.
+   * Overall particle advection speed x1.5 from the previous baseline.
    */
-  if (z <= 4.8) return 0.0112;
-  if (z <= 5.4) return 0.0120;
-  if (z <= 6.2) return 0.0132;
-  if (z <= 7.0) return 0.0074;
-  if (z <= 8.0) return 0.0080;
+  if (z <= 4.8) return 0.0084;
+  if (z <= 5.4) return 0.0090;
+  if (z <= 6.2) return 0.0099;
+  if (z <= 7.0) return 0.00555;
+  if (z <= 8.0) return 0.0060;
 
-  return 0.0084;
+  return 0.0063;
 }
 
 function updateParticles() {
