@@ -787,29 +787,30 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * History length for one-dash particle rendering.
-   * Low zoom needs more history so the dash remains visible.
+   * History length.
+   * Curved rendering below samples a few points from this history.
    */
-  if (z <= 4.8) return 160;
-  if (z <= 5.5) return 150;
-  if (z <= 6.5) return 140;
-  if (z <= 7.5) return 13;
-  if (z <= 8.5) return 12;
+  if (z <= 4.8) return 36;
+  if (z <= 5.5) return 32;
+  if (z <= 6.5) return 28;
+  if (z <= 7.5) return 24;
+  if (z <= 8.5) return 20;
 
-  return 12;
+  return 18;
 }
 
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Calm particle advection.
+   * Calm advection.
+   * Keep low zoom from looking like fast straight streaks.
    */
-  if (z <= 4.8) return 0.0038;
-  if (z <= 5.4) return 0.0038;
-  if (z <= 6.2) return 0.0039;
-  if (z <= 7.0) return 0.0040;
-  if (z <= 8.0) return 0.0041;
+  if (z <= 4.8) return 0.0028;
+  if (z <= 5.4) return 0.0030;
+  if (z <= 6.2) return 0.0033;
+  if (z <= 7.0) return 0.0037;
+  if (z <= 8.0) return 0.0040;
 
   return 0.0042;
 }
@@ -973,8 +974,10 @@ function buildParticleBuffers() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * One particle = one rounded dash.
-   * This avoids tiny segmented trails disappearing at low zoom.
+   * Optimized curved trail:
+   * - not one straight long dash
+   * - not every tiny segment
+   * - sample only a few segments from the trail history
    */
   let zoomAlphaBoost = 1.0;
   if (z <= 4.8) zoomAlphaBoost = 1.70;
@@ -1010,43 +1013,62 @@ function buildParticleBuffers() {
     if (!p || !p.trail || p.trail.length < 2) continue;
 
     const n = p.trail.length;
+    const fadeFactor = Math.min(1.0, (p.fadeAge || 0) / 12.0);
 
     /*
-     * Use one old point and the current point.
-     * Do not draw all internal trail segments.
+     * Segment count by zoom.
+     * Low zoom needs enough segments to avoid straight-line artifacts.
      */
-    const q0 = p.trail[0];
-    const q1 = p.trail[n - 1];
+    let segCount = 4;
+    if (z <= 5.5) segCount = 5;
+    else if (z <= 7.0) segCount = 4;
+    else segCount = 3;
 
-    if (
-      !Number.isFinite(q0.lon) || !Number.isFinite(q0.lat) ||
-      !Number.isFinite(q1.lon) || !Number.isFinite(q1.lat)
-    ) {
-      continue;
+    segCount = Math.min(segCount, n - 1);
+
+    for (let sidx = 0; sidx < segCount; sidx++) {
+      const f0 = sidx / segCount;
+      const f1 = (sidx + 1) / segCount;
+
+      const i0 = Math.max(0, Math.min(n - 1, Math.floor(f0 * (n - 1))));
+      const i1 = Math.max(0, Math.min(n - 1, Math.floor(f1 * (n - 1))));
+
+      if (i1 <= i0) continue;
+
+      const q0 = p.trail[i0];
+      const q1 = p.trail[i1];
+
+      if (
+        !Number.isFinite(q0.lon) || !Number.isFinite(q0.lat) ||
+        !Number.isFinite(q1.lon) || !Number.isFinite(q1.lat)
+      ) {
+        continue;
+      }
+
+      /*
+       * Strong tail-to-head contrast.
+       * Tail is visible but dim; head is clearly stronger.
+       */
+      const t0 = f0;
+      const t1 = f1;
+      const speed = q1.speed || 0.0;
+
+      let a0 = (0.10 + 0.28 * Math.pow(t0, 1.25)) * fadeFactor * zoomAlphaBoost;
+      let a1 = (0.16 + 0.54 * Math.pow(t1, 1.10)) * fadeFactor * zoomAlphaBoost;
+
+      if (particlesColoredBySpeed()) {
+        a0 = (0.14 + 0.34 * Math.pow(t0, 1.20)) * fadeFactor * zoomAlphaBoost;
+        a1 = (0.22 + 0.68 * Math.pow(t1, 1.05)) * fadeFactor * zoomAlphaBoost;
+      }
+
+      a0 = Math.min(a0, particlesColoredBySpeed() ? 0.55 : 0.40);
+      a1 = Math.min(a1, particlesColoredBySpeed() ? 0.90 : 0.65);
+
+      const c0 = particleColor01(speed, a0);
+      const c1 = particleColor01(speed, a1);
+
+      pushQuad(q0, q1, c0, c1);
     }
-
-    const fadeFactor = Math.min(1.0, (p.fadeAge || 0) / 10.0);
-    const speed = q1.speed || 0.0;
-
-    /*
-     * Stronger tail visibility.
-     * The tail should be visible, not vanish at low zoom.
-     */
-    let tailAlpha = 0.22 * fadeFactor * zoomAlphaBoost;
-    let headAlpha = 0.48 * fadeFactor * zoomAlphaBoost;
-
-    if (particlesColoredBySpeed()) {
-      tailAlpha = 0.30 * fadeFactor * zoomAlphaBoost;
-      headAlpha = 0.72 * fadeFactor * zoomAlphaBoost;
-    }
-
-    tailAlpha = Math.min(tailAlpha, particlesColoredBySpeed() ? 0.50 : 0.38);
-    headAlpha = Math.min(headAlpha, particlesColoredBySpeed() ? 0.86 : 0.62);
-
-    const c0 = particleColor01(speed, tailAlpha);
-    const c1 = particleColor01(speed, headAlpha);
-
-    pushQuad(q0, q1, c0, c1);
   }
 
   return {
@@ -1088,11 +1110,11 @@ function uploadAndDrawParticles(gl, matrix) {
   let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
 
   /*
-   * Keep one-dash particles visible at low zoom.
+   * Keep low-zoom trails visible.
    */
-  if (z <= 4.8) widthPx *= 1.18;
-  else if (z <= 5.5) widthPx *= 1.10;
-  else if (z <= 6.5) widthPx *= 1.02;
+  if (z <= 4.8) widthPx *= 1.10;
+  else if (z <= 5.5) widthPx *= 1.04;
+  else if (z <= 6.5) widthPx *= 0.98;
   else if (z >= 8.5) widthPx *= 0.98;
 
   gl.useProgram(GLState.particleProgram);
