@@ -787,31 +787,32 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Low zoom keeps the current tuned length.
-   * High zoom trail length is increased about 3x.
+   * Consistent zoom scaling:
+   * low zoom = longer trail, high zoom = shorter trail.
    */
   if (z <= 4.8) return 90;
   if (z <= 5.5) return 80;
-  if (z <= 6.5) return 70;
-  if (z <= 7.5) return 36;
-  if (z <= 8.5) return 72;
+  if (z <= 6.5) return 68;
+  if (z <= 7.5) return 56;
+  if (z <= 8.5) return 48;
 
-  return 54;
+  return 40;
 }
 
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Overall particle advection speed x1.5 from the previous baseline.
+   * Consistent zoom scaling:
+   * low zoom = faster, high zoom = calmer.
    */
   if (z <= 4.8) return 0.0084;
-  if (z <= 5.4) return 0.0090;
-  if (z <= 6.2) return 0.0099;
-  if (z <= 7.0) return 0.00555;
-  if (z <= 8.0) return 0.0060;
+  if (z <= 5.5) return 0.0078;
+  if (z <= 6.5) return 0.0072;
+  if (z <= 7.5) return 0.0067;
+  if (z <= 8.5) return 0.0063;
 
-  return 0.0063;
+  return 0.0060;
 }
 
 function updateParticles() {
