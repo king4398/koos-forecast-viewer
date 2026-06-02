@@ -671,7 +671,8 @@ function updateParticles() {
   const target = particleTargetCount();
 
   if (particles.length < target * 0.75 || particles.length > target * 1.25) {
-    replenishParticlesForView();
+    resetParticles();
+    return;
   }
 
   const now = performance.now();
@@ -1374,11 +1375,12 @@ function bindEvents() {
       if (els.currentOverlay && !els.currentOverlay.checked) return;
 
       /*
-       * After pan/zoom, do not wipe particles.
-       * Keep existing trails and softly add particles for the new view.
+       * Recalculate particles after pan/zoom.
+       * This clears old view particles and reseeds particles inside the new map bounds.
        */
-      replenishParticlesForView();
+      resetParticles();
       startParticles();
+      map.triggerRepaint();
     };
 
     map.on("moveend", refreshParticlesForView);
