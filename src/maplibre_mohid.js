@@ -24,6 +24,7 @@ const MODEL_DEFS = {
   }
 };
 
+window.localStorage.removeItem("koos_forecast_model");
 const urlParams = new URLSearchParams(window.location.search);
 let currentModel = urlParams.get("model") || "mohid";
 
@@ -125,6 +126,12 @@ function configureModelControls() {
 
   const title = document.querySelector("#top-panel .title");
   if (title) title.textContent = "KOOS Forecast Viewer";
+
+  const particleLabel = document.querySelector('label.check-row span');
+  if (particleLabel) {
+    particleLabel.textContent =
+      currentModel === "swan" ? "Wave direction particles" : "Current particles";
+  }
 }
 
 function isSwanModel() {
@@ -1174,16 +1181,32 @@ function uploadAndDrawParticles(gl, matrix) {
    * Quad-line particle width in screen pixels.
    * Wider than GL_LINES, but still natural.
    */
-  let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
+  let widthPx;
 
-  /*
-   * Thin particle dashes across zoom levels.
-   */
-  if (z <= 4.8) widthPx *= 0.30;
-  else if (z <= 5.5) widthPx *= 0.36;
-  else if (z <= 6.5) widthPx *= 0.42;
-  else if (z <= 8.5) widthPx *= 0.46;
-  else widthPx *= 0.50;
+  if (currentModel === "swan") {
+    /*
+     * SWAN particles represent wave direction only.
+     * Keep them visible separately from thin MOHID current particles.
+     */
+    widthPx = 0.82;
+
+    if (z <= 4.8) widthPx *= 0.75;
+    else if (z <= 5.5) widthPx *= 0.80;
+    else if (z <= 6.5) widthPx *= 0.86;
+    else if (z <= 8.5) widthPx *= 0.92;
+    else widthPx *= 0.95;
+  } else {
+    widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
+
+    /*
+     * Thin particle dashes across zoom levels.
+     */
+    if (z <= 4.8) widthPx *= 0.30;
+    else if (z <= 5.5) widthPx *= 0.36;
+    else if (z <= 6.5) widthPx *= 0.42;
+    else if (z <= 8.5) widthPx *= 0.46;
+    else widthPx *= 0.50;
+  }
 
   gl.useProgram(GLState.particleProgram);
 

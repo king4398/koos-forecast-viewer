@@ -152,9 +152,12 @@ def build_lonlat_and_corners():
     lon1d = np.linspace(X0, X0 + XLEN, NX, dtype=np.float32)
     lat1d = np.linspace(Y0, Y0 + YLEN, NY, dtype=np.float32)
 
-    if FLIP_Y:
-        lat1d = lat1d[::-1].copy()
-
+    # IMPORTANT:
+    # The user's verified SWAN quicklook uses:
+    #   lon = linspace(X0, X0+XLEN)
+    #   lat = linspace(Y0, Y0+YLEN)
+    #   data = flipud(raw_frame)
+    # Therefore coordinates must stay ascending.
     lon2d, lat2d = np.meshgrid(lon1d, lat1d)
 
     dx = XLEN / MXC
@@ -163,9 +166,7 @@ def build_lonlat_and_corners():
     lonc1d = np.linspace(X0 - dx / 2.0, X0 + XLEN + dx / 2.0, NX + 1, dtype=np.float32)
     latc1d = np.linspace(Y0 - dy / 2.0, Y0 + YLEN + dy / 2.0, NY + 1, dtype=np.float32)
 
-    if FLIP_Y:
-        latc1d = latc1d[::-1].copy()
-
+    # Same rule for corners: keep coordinates ascending.
     lonc2d, latc2d = np.meshgrid(lonc1d, latc1d)
 
     return lon2d, lat2d, lonc2d, latc2d
