@@ -425,3 +425,13 @@ select option {
 #timeseries-canvas {
   height: 335px;
 }
+
+/* Cleaner point time-series layout */
+#timeseries-panel {
+  width: 570px;
+  height: 470px;
+}
+
+#timeseries-canvas {
+  height: 375px;
+}

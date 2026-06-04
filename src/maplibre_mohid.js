@@ -1777,19 +1777,29 @@ function drawPointTimeseries(series) {
   ctx.fillRect(0, 0, width, height);
 
   const nPanel = series.length;
-  const padL = 72 * dpr;
+  const padL = 58 * dpr;
   const padR = 18 * dpr;
-  const padT = 18 * dpr;
+  const padT = 8 * dpr;
   const padB = 30 * dpr;
+  const labelH = 18 * dpr;
   const gap = 14 * dpr;
 
-  const panelH = (height - padT - padB - gap * (nPanel - 1)) / Math.max(1, nPanel);
+  const panelH = (height - padT - padB - gap * (nPanel - 1) - labelH * nPanel) / Math.max(1, nPanel);
 
-  const colors = [
-    "rgba(120, 210, 255, 1.0)",
-    "rgba(255, 210, 110, 1.0)",
-    "rgba(160, 255, 170, 1.0)",
-    "rgba(255, 150, 150, 1.0)"
+  const colorByName = {
+    temperature: "rgba(110, 210, 255, 1.0)",
+    salinity: "rgba(255, 205, 75, 1.0)",
+    ssh: "rgba(145, 255, 165, 1.0)",
+    current_speed: "rgba(255, 120, 125, 1.0)",
+    hs: "rgba(90, 190, 255, 1.0)",
+    tp: "rgba(255, 210, 95, 1.0)"
+  };
+
+  const fallbackColors = [
+    "rgba(110, 210, 255, 1.0)",
+    "rgba(255, 205, 75, 1.0)",
+    "rgba(145, 255, 165, 1.0)",
+    "rgba(255, 120, 125, 1.0)"
   ];
 
   const n = frameCount();
@@ -1799,7 +1809,9 @@ function drawPointTimeseries(series) {
 
   for (let pidx = 0; pidx < nPanel; pidx++) {
     const s = series[pidx];
-    const y0 = padT + pidx * (panelH + gap);
+    const blockY = padT + pidx * (panelH + labelH + gap);
+    const labelY = blockY;
+    const y0 = blockY + labelH;
     const x0 = padL;
     const x1 = width - padR;
     const y1 = y0 + panelH;
@@ -1815,7 +1827,13 @@ function drawPointTimeseries(series) {
       vmax = vmin + 1.0;
     }
 
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.fillStyle = "rgba(245,247,251,0.94)";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.font = `${10.5 * dpr}px ui-monospace, Menlo, Consolas, monospace`;
+    ctx.fillText(`${s.shortLabel} [${s.unit}]`, x0, labelY + 1 * dpr);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
     ctx.lineWidth = 1 * dpr;
 
     for (let gy = 0; gy <= 2; gy++) {
@@ -1826,22 +1844,19 @@ function drawPointTimeseries(series) {
       ctx.stroke();
     }
 
-    ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.strokeStyle = "rgba(255,255,255,0.72)";
+    ctx.lineWidth = 1.2 * dpr;
     ctx.strokeRect(x0, y0, x1 - x0, panelH);
 
-    ctx.fillStyle = "rgba(245,247,251,0.92)";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(`${s.shortLabel} [${s.unit}]`, 8 * dpr, y0 + panelH * 0.50);
-
-    ctx.fillStyle = "rgba(245,247,251,0.68)";
+    ctx.fillStyle = "rgba(245,247,251,0.78)";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillText(fmtLegendNumber(vmax, 2), x0 - 8 * dpr, y0 + 9 * dpr);
-    ctx.fillText(fmtLegendNumber(vmin, 2), x0 - 8 * dpr, y1 - 9 * dpr);
+    ctx.font = `${9.5 * dpr}px ui-monospace, Menlo, Consolas, monospace`;
+    ctx.fillText(fmtLegendNumber(vmax, 2), x0 - 7 * dpr, y0 + 8 * dpr);
+    ctx.fillText(fmtLegendNumber(vmin, 2), x0 - 7 * dpr, y1 - 8 * dpr);
 
-    ctx.strokeStyle = colors[pidx % colors.length];
-    ctx.lineWidth = 1.8 * dpr;
+    ctx.strokeStyle = colorByName[s.name] || fallbackColors[pidx % fallbackColors.length];
+    ctx.lineWidth = 2.0 * dpr;
     ctx.beginPath();
 
     let started = false;
