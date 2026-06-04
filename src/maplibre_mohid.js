@@ -1748,6 +1748,8 @@ async function extractPointTimeseries(cell, requestId) {
       label: vm && vm.label ? vm.label : shortLabel,
       shortLabel,
       unit: vm && vm.unit ? vm.unit : "",
+      vmin: vm && Number.isFinite(vm.vmin) ? Number(vm.vmin) : null,
+      vmax: vm && Number.isFinite(vm.vmax) ? Number(vm.vmax) : null,
       values
     });
   }
@@ -1762,8 +1764,8 @@ function drawPointTimeseries(series) {
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
 
-  const width = Math.max(320, Math.round(rect.width * dpr));
-  const height = Math.max(220, Math.round(rect.height * dpr));
+  const width = Math.max(520, Math.round(rect.width * dpr));
+  const height = Math.max(360, Math.round(rect.height * dpr));
 
   canvas.width = width;
   canvas.height = height;
@@ -1775,11 +1777,11 @@ function drawPointTimeseries(series) {
   ctx.fillRect(0, 0, width, height);
 
   const nPanel = series.length;
-  const padL = 54 * dpr;
-  const padR = 14 * dpr;
-  const padT = 10 * dpr;
-  const padB = 24 * dpr;
-  const gap = 10 * dpr;
+  const padL = 72 * dpr;
+  const padR = 18 * dpr;
+  const padT = 18 * dpr;
+  const padB = 30 * dpr;
+  const gap = 14 * dpr;
 
   const panelH = (height - padT - padB - gap * (nPanel - 1)) / Math.max(1, nPanel);
 
@@ -1802,18 +1804,16 @@ function drawPointTimeseries(series) {
     const x1 = width - padR;
     const y1 = y0 + panelH;
 
-    const finite = s.values.filter(Number.isFinite);
-    let vmin = finite.length ? Math.min(...finite) : 0.0;
-    let vmax = finite.length ? Math.max(...finite) : 1.0;
+    /*
+     * Use the same range as the map colorbar.
+     * This makes point time series visually consistent with the scalar overlay.
+     */
+    let vmin = Number.isFinite(s.vmin) ? s.vmin : 0.0;
+    let vmax = Number.isFinite(s.vmax) ? s.vmax : 1.0;
 
     if (Math.abs(vmax - vmin) < 1.0e-12) {
-      vmin -= 0.5;
-      vmax += 0.5;
+      vmax = vmin + 1.0;
     }
-
-    const margin = (vmax - vmin) * 0.08;
-    vmin -= margin;
-    vmax += margin;
 
     ctx.strokeStyle = "rgba(255,255,255,0.12)";
     ctx.lineWidth = 1 * dpr;
@@ -1831,13 +1831,14 @@ function drawPointTimeseries(series) {
 
     ctx.fillStyle = "rgba(245,247,251,0.92)";
     ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText(`${s.shortLabel} [${s.unit}]`, 8 * dpr, y0 + 2 * dpr);
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${s.shortLabel} [${s.unit}]`, 8 * dpr, y0 + panelH * 0.50);
 
-    ctx.fillStyle = "rgba(245,247,251,0.65)";
+    ctx.fillStyle = "rgba(245,247,251,0.68)";
     ctx.textAlign = "right";
-    ctx.fillText(fmtLegendNumber(vmax, 2), x0 - 6 * dpr, y0);
-    ctx.fillText(fmtLegendNumber(vmin, 2), x0 - 6 * dpr, y1 - 12 * dpr);
+    ctx.textBaseline = "middle";
+    ctx.fillText(fmtLegendNumber(vmax, 2), x0 - 8 * dpr, y0 + 9 * dpr);
+    ctx.fillText(fmtLegendNumber(vmin, 2), x0 - 8 * dpr, y1 - 9 * dpr);
 
     ctx.strokeStyle = colors[pidx % colors.length];
     ctx.lineWidth = 1.8 * dpr;

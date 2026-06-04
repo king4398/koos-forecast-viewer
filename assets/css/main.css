@@ -405,3 +405,23 @@ select option {
   width: 100%;
   height: 265px;
 }
+
+/* Point time-series popup refinement */
+#timeseries-panel {
+  width: 560px;
+  height: 430px;
+  padding: 14px;
+}
+
+#timeseries-title {
+  font-size: 15px;
+}
+
+#timeseries-info {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+#timeseries-canvas {
+  height: 335px;
+}
