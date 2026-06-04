@@ -341,3 +341,67 @@ select option {
   font-size: 15px;
   line-height: 1.15;
 }
+
+#timeseries-panel {
+  position: absolute;
+  left: 18px;
+  top: 62px;
+  width: 430px;
+  max-width: calc(100vw - 40px);
+  height: 330px;
+  z-index: 20;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(5, 18, 31, 0.90);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.30);
+  color: #f5f7fb;
+  backdrop-filter: blur(8px);
+}
+
+#timeseries-panel.hidden {
+  display: none;
+}
+
+#timeseries-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+#timeseries-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+#timeseries-info {
+  margin-top: 3px;
+  font-size: 11px;
+  color: rgba(245,247,251,0.75);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-line;
+}
+
+#timeseries-close {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255,255,255,0.10);
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 20px;
+}
+
+#timeseries-close:hover {
+  background: rgba(255,255,255,0.20);
+}
+
+#timeseries-canvas {
+  display: block;
+  width: 100%;
+  height: 265px;
+}

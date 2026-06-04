@@ -57,6 +57,17 @@
     <div id="status-line">Loading...</div>
   </div>
 
+  <div id="timeseries-panel" class="hidden">
+    <div id="timeseries-header">
+      <div>
+        <div id="timeseries-title">Point time series</div>
+        <div id="timeseries-info">--</div>
+      </div>
+      <button id="timeseries-close" type="button">×</button>
+    </div>
+    <canvas id="timeseries-canvas"></canvas>
+  </div>
+
   <div id="legend-box"></div>
 
   <div id="time-panel">
@@ -66,7 +77,7 @@
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="src/maplibre_mohid.js?v=swan_particle_direct_vector_01"></script>
+  <script src="src/maplibre_mohid.js?v=point_timeseries_01"></script>
 
   <div id="ust21-logo-overlay">
     <div id="ust21-logo-title">UST21 수치예보팀</div>

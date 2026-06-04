@@ -45,7 +45,12 @@ const els = {
   legendBox: document.getElementById("legend-box"),
   meshOverlay: document.getElementById("mesh-overlay-check"),
   currentOverlay: document.getElementById("current-overlay-check"),
-  particleDensity: document.getElementById("particle-density-select")
+  particleDensity: document.getElementById("particle-density-select"),
+  tsPanel: document.getElementById("timeseries-panel"),
+  tsTitle: document.getElementById("timeseries-title"),
+  tsInfo: document.getElementById("timeseries-info"),
+  tsCanvas: document.getElementById("timeseries-canvas"),
+  tsClose: document.getElementById("timeseries-close")
 };
 
 let map = null;
@@ -63,6 +68,9 @@ let currentV = null;
 let particles = [];
 let particleRunning = false;
 let lastParticleUpdateMs = 0;
+
+let sampleClickDown = null;
+let sampleRequestId = 0;
 let particleDrawVertexCount = 0;
 
 const GLState = {
@@ -1521,6 +1529,468 @@ function fmtLegendNumber(x, digits = 1) {
 
 
 
+function timeseriesVariablesForModel() {
+  if (!meta || !meta.variables) return [];
+
+  if (currentModel === "swan") {
+    return [
+      ["hs", "Hs"],
+      ["tp", "Tp"]
+    ].filter(([v]) => meta.variables[v]);
+  }
+
+  return [
+    ["temperature", "Temp"],
+    ["salinity", "Salinity"],
+    ["ssh", "Elevation"],
+    ["current_speed", "Current Speed"]
+  ].filter(([v]) => meta.variables[v]);
+}
+
+function isValidSampleCell(cell) {
+  if (!grid || cell == null || cell < 0 || cell >= grid.n) return false;
+  if (!Number.isFinite(grid.lon[cell]) || !Number.isFinite(grid.lat[cell])) return false;
+  if (grid.mask && grid.mask[cell] <= 0.0) return false;
+  return true;
+}
+
+function findNearestSampleCell(lon, lat) {
+  if (!grid || !meta || !meta.grid) return -1;
+
+  const lonMin = meta.grid.lon_min;
+  const lonMax = meta.grid.lon_max;
+  const latMin = meta.grid.lat_min;
+  const latMax = meta.grid.lat_max;
+
+  if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return -1;
+
+  /*
+   * SWAN regular grid: direct lookup first, then small radius search.
+   */
+  if (currentModel === "swan") {
+    const nx = grid.nx;
+    const ny = grid.ny;
+
+    let ix = Math.round((lon - lonMin) / Math.max(1.0e-12, lonMax - lonMin) * (nx - 1));
+    let iy = Math.round((lat - latMin) / Math.max(1.0e-12, latMax - latMin) * (ny - 1));
+
+    ix = Math.max(0, Math.min(nx - 1, ix));
+    iy = Math.max(0, Math.min(ny - 1, iy));
+
+    const direct = iy * nx + ix;
+    if (isValidSampleCell(direct)) return direct;
+
+    for (let r = 1; r <= 8; r++) {
+      let best = -1;
+      let bestD2 = 1.0e30;
+
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+
+          const xx = ix + dx;
+          const yy = iy + dy;
+          if (xx < 0 || xx >= nx || yy < 0 || yy >= ny) continue;
+
+          const c = yy * nx + xx;
+          if (!isValidSampleCell(c)) continue;
+
+          const dlon = grid.lon[c] - lon;
+          const dlat = grid.lat[c] - lat;
+          const d2 = dlon * dlon + dlat * dlat;
+
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = c;
+          }
+        }
+      }
+
+      if (best >= 0) return best;
+    }
+
+    return -1;
+  }
+
+  /*
+   * MOHID: use lookup grid first if available.
+   */
+  if (grid.particleLookupCell && grid.particleLookupNx && grid.particleLookupNy) {
+    const lnx = grid.particleLookupNx;
+    const lny = grid.particleLookupNy;
+
+    let ix = Math.floor((lon - lonMin) / Math.max(1.0e-12, lonMax - lonMin) * lnx);
+    let iy = Math.floor((lat - latMin) / Math.max(1.0e-12, latMax - latMin) * lny);
+
+    ix = Math.max(0, Math.min(lnx - 1, ix));
+    iy = Math.max(0, Math.min(lny - 1, iy));
+
+    for (let r = 0; r <= 3; r++) {
+      let best = -1;
+      let bestD2 = 1.0e30;
+
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const xx = ix + dx;
+          const yy = iy + dy;
+          if (xx < 0 || xx >= lnx || yy < 0 || yy >= lny) continue;
+
+          const c = grid.particleLookupCell[yy * lnx + xx];
+          if (!isValidSampleCell(c)) continue;
+
+          const dlon = grid.lon[c] - lon;
+          const dlat = grid.lat[c] - lat;
+          const d2 = dlon * dlon + dlat * dlat;
+
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = c;
+          }
+        }
+      }
+
+      if (best >= 0) return best;
+    }
+  }
+
+  /*
+   * Fallback: brute-force valid cells.
+   * Click only, so this is acceptable.
+   */
+  let best = -1;
+  let bestD2 = 1.0e30;
+  const coslat = Math.max(0.2, Math.cos(lat * Math.PI / 180.0));
+
+  for (const c of grid.validCellIndices || []) {
+    if (!isValidSampleCell(c)) continue;
+
+    const dlon = (grid.lon[c] - lon) * coslat;
+    const dlat = grid.lat[c] - lat;
+    const d2 = dlon * dlon + dlat * dlat;
+
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      best = c;
+    }
+  }
+
+  return best;
+}
+
+function ensureSamplePointLayer() {
+  if (!map) return;
+
+  const empty = {
+    type: "FeatureCollection",
+    features: []
+  };
+
+  if (!map.getSource("sample-point")) {
+    map.addSource("sample-point", {
+      type: "geojson",
+      data: empty
+    });
+  }
+
+  if (!map.getLayer("sample-point-circle")) {
+    map.addLayer({
+      id: "sample-point-circle",
+      type: "circle",
+      source: "sample-point",
+      paint: {
+        "circle-radius": 6,
+        "circle-color": "#ffffff",
+        "circle-stroke-color": "#0b1f33",
+        "circle-stroke-width": 2
+      }
+    });
+  }
+}
+
+function setSamplePointMarker(lon, lat) {
+  ensureSamplePointLayer();
+
+  const src = map.getSource("sample-point");
+  if (!src) return;
+
+  src.setData({
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [lon, lat]
+      },
+      properties: {}
+    }]
+  });
+}
+
+async function extractPointTimeseries(cell, requestId) {
+  const vars = timeseriesVariablesForModel();
+  const out = [];
+
+  for (const [name, shortLabel] of vars) {
+    const vm = meta.variables[name];
+    const values = [];
+
+    for (let i = 0; i < frameCount(); i++) {
+      if (requestId !== sampleRequestId) return null;
+
+      const arr = await loadFrame(name, i);
+      const val = arr && cell >= 0 && cell < arr.length ? arr[cell] : NaN;
+
+      values.push(Number.isFinite(val) ? Number(val) : NaN);
+    }
+
+    out.push({
+      name,
+      label: vm && vm.label ? vm.label : shortLabel,
+      shortLabel,
+      unit: vm && vm.unit ? vm.unit : "",
+      values
+    });
+  }
+
+  return out;
+}
+
+function drawPointTimeseries(series) {
+  const canvas = els.tsCanvas;
+  if (!canvas || !series || series.length === 0) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+
+  const width = Math.max(320, Math.round(rect.width * dpr));
+  const height = Math.max(220, Math.round(rect.height * dpr));
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+
+  ctx.fillStyle = "rgba(4, 15, 26, 0.96)";
+  ctx.fillRect(0, 0, width, height);
+
+  const nPanel = series.length;
+  const padL = 54 * dpr;
+  const padR = 14 * dpr;
+  const padT = 10 * dpr;
+  const padB = 24 * dpr;
+  const gap = 10 * dpr;
+
+  const panelH = (height - padT - padB - gap * (nPanel - 1)) / Math.max(1, nPanel);
+
+  const colors = [
+    "rgba(120, 210, 255, 1.0)",
+    "rgba(255, 210, 110, 1.0)",
+    "rgba(160, 255, 170, 1.0)",
+    "rgba(255, 150, 150, 1.0)"
+  ];
+
+  const n = frameCount();
+
+  ctx.font = `${10 * dpr}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.lineWidth = 1 * dpr;
+
+  for (let pidx = 0; pidx < nPanel; pidx++) {
+    const s = series[pidx];
+    const y0 = padT + pidx * (panelH + gap);
+    const x0 = padL;
+    const x1 = width - padR;
+    const y1 = y0 + panelH;
+
+    const finite = s.values.filter(Number.isFinite);
+    let vmin = finite.length ? Math.min(...finite) : 0.0;
+    let vmax = finite.length ? Math.max(...finite) : 1.0;
+
+    if (Math.abs(vmax - vmin) < 1.0e-12) {
+      vmin -= 0.5;
+      vmax += 0.5;
+    }
+
+    const margin = (vmax - vmin) * 0.08;
+    vmin -= margin;
+    vmax += margin;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1 * dpr;
+
+    for (let gy = 0; gy <= 2; gy++) {
+      const yy = y0 + panelH * gy / 2;
+      ctx.beginPath();
+      ctx.moveTo(x0, yy);
+      ctx.lineTo(x1, yy);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.strokeRect(x0, y0, x1 - x0, panelH);
+
+    ctx.fillStyle = "rgba(245,247,251,0.92)";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`${s.shortLabel} [${s.unit}]`, 8 * dpr, y0 + 2 * dpr);
+
+    ctx.fillStyle = "rgba(245,247,251,0.65)";
+    ctx.textAlign = "right";
+    ctx.fillText(fmtLegendNumber(vmax, 2), x0 - 6 * dpr, y0);
+    ctx.fillText(fmtLegendNumber(vmin, 2), x0 - 6 * dpr, y1 - 12 * dpr);
+
+    ctx.strokeStyle = colors[pidx % colors.length];
+    ctx.lineWidth = 1.8 * dpr;
+    ctx.beginPath();
+
+    let started = false;
+
+    for (let i = 0; i < n; i++) {
+      const v = s.values[i];
+
+      if (!Number.isFinite(v)) {
+        started = false;
+        continue;
+      }
+
+      const x = x0 + (x1 - x0) * (n <= 1 ? 0 : i / (n - 1));
+      const y = y1 - (y1 - y0) * ((v - vmin) / (vmax - vmin));
+
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "rgba(245,247,251,0.62)";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+
+  const f0 = meta.frames[0];
+  const f1 = meta.frames[frameCount() - 1];
+
+  ctx.fillText(f0 ? (f0.label || f0.time_utc || "") : "", padL, height - 4 * dpr);
+  ctx.textAlign = "right";
+  ctx.fillText(f1 ? (f1.label || f1.time_utc || "") : "", width - padR, height - 4 * dpr);
+}
+
+async function showPointTimeseries(lon, lat) {
+  if (!map || !grid || !meta) return;
+
+  const cell = findNearestSampleCell(lon, lat);
+
+  if (cell < 0) {
+    if (els.tsPanel) els.tsPanel.classList.remove("hidden");
+    if (els.tsTitle) els.tsTitle.textContent = "No model cell";
+    if (els.tsInfo) {
+      els.tsInfo.textContent =
+        `clicked: ${lon.toFixed(5)}, ${lat.toFixed(5)}\n` +
+        `No valid ${MODEL_DEFS[currentModel].label} cell nearby`;
+    }
+    return;
+  }
+
+  const sampleLon = grid.lon[cell];
+  const sampleLat = grid.lat[cell];
+
+  setSamplePointMarker(sampleLon, sampleLat);
+
+  const requestId = ++sampleRequestId;
+
+  if (els.tsPanel) els.tsPanel.classList.remove("hidden");
+  if (els.tsTitle) {
+    els.tsTitle.textContent =
+      `${MODEL_DEFS[currentModel].label} point time series`;
+  }
+  if (els.tsInfo) {
+    els.tsInfo.textContent =
+      `cell: ${cell}\n` +
+      `lon/lat: ${sampleLon.toFixed(5)}, ${sampleLat.toFixed(5)}\n` +
+      `loading...`;
+  }
+
+  const series = await extractPointTimeseries(cell, requestId);
+
+  if (!series || requestId !== sampleRequestId) return;
+
+  if (els.tsInfo) {
+    els.tsInfo.textContent =
+      `cell: ${cell}\n` +
+      `lon/lat: ${sampleLon.toFixed(5)}, ${sampleLat.toFixed(5)}\n` +
+      `frames: ${frameCount()}`;
+  }
+
+  drawPointTimeseries(series);
+}
+
+function bindPointTimeseriesEvents() {
+  if (!map || map.__pointTimeseriesEventsBound) return;
+
+  map.__pointTimeseriesEventsBound = true;
+
+  const canvas = map.getCanvas();
+
+  canvas.addEventListener("mousedown", ev => {
+    if (ev.button !== 0) {
+      sampleClickDown = null;
+      return;
+    }
+
+    sampleClickDown = {
+      x: ev.clientX,
+      y: ev.clientY,
+      t: performance.now()
+    };
+  });
+
+  map.on("click", ev => {
+    if (!sampleClickDown) return;
+
+    const oe = ev.originalEvent;
+    const dx = oe.clientX - sampleClickDown.x;
+    const dy = oe.clientY - sampleClickDown.y;
+    const dist = Math.hypot(dx, dy);
+    const dt = performance.now() - sampleClickDown.t;
+
+    sampleClickDown = null;
+
+    /*
+     * Ignore map drag / long press.
+     */
+    if (dist > 5 || dt > 650) return;
+
+    showPointTimeseries(ev.lngLat.lng, ev.lngLat.lat);
+  });
+
+  if (els.tsClose) {
+    els.tsClose.addEventListener("click", () => {
+      if (els.tsPanel) els.tsPanel.classList.add("hidden");
+
+      const src = map.getSource("sample-point");
+      if (src) {
+        src.setData({
+          type: "FeatureCollection",
+          features: []
+        });
+      }
+    });
+  }
+
+  window.addEventListener("resize", () => {
+    if (!els.tsPanel || els.tsPanel.classList.contains("hidden")) return;
+    /*
+     * Redraw is skipped here because series is not stored globally.
+     * The next click redraws at the new size.
+     */
+  });
+}
+
+
 function updateLegend() {
   const legendVar = scalarVariableForCurrentView();
   const v = meta.variables[legendVar];
@@ -1770,8 +2240,10 @@ async function boot() {
       await loadGrid();
 
       map.addLayer(makeMohidLayer());
+      ensureSamplePointLayer();
 
       bindEvents();
+      bindPointTimeseriesEvents();
       updateLegend();
       updateTimeLabel();
 
