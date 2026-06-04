@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "swan_hs_speed_particles_01";
+const APP_DATA_VERSION = "preload_ts_nodata_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -63,6 +63,7 @@ let playTimer = null;
 
 let scalarCache = new Map();
 let timeseriesCache = new Map();
+let pointTimeseriesFullCache = new Map();
 let currentU = null;
 let currentV = null;
 
@@ -222,6 +223,39 @@ async function fetchFloat32Range(url, startFloat, count) {
   }
 
   return arr.slice(0, Math.min(arr.length, count));
+}
+
+async function fetchFloat32Full(url) {
+  const sep = url.includes("?") ? "&" : "?";
+  const fullUrl = url + sep + "v=" + APP_DATA_VERSION;
+
+  const res = await fetch(fullUrl, { cache: "force-cache" });
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+
+  const buf = await res.arrayBuffer();
+  return new Float32Array(buf);
+}
+
+async function preloadPointTimeseriesFiles() {
+  if (!meta || !meta.timeseries || !meta.timeseries.variables) return;
+
+  const vars = timeseriesVariablesForModel();
+
+  for (const [name] of vars) {
+    const ts = meta.timeseries.variables[name];
+    if (!ts || !ts.file) continue;
+
+    const key = `${currentModel}:${name}:${APP_DATA_VERSION}`;
+    if (pointTimeseriesFullCache.has(key)) continue;
+
+    fetchFloat32Full(DATA_ROOT + ts.file)
+      .then(arr => {
+        pointTimeseriesFullCache.set(key, arr);
+      })
+      .catch(err => {
+        console.warn("point timeseries preload failed:", name, err);
+      });
+  }
 }
 
 function compileShader(gl, type, src) {
@@ -1717,21 +1751,30 @@ async function loadPointTimeseriesVariable(name, cell) {
   const nt = frameCount();
 
   if (ts && ts.file && meta.timeseries.layout === "cell_major") {
-    const key = `${currentModel}:${name}:${cell}:${APP_DATA_VERSION}`;
-
-    if (timeseriesCache.has(key)) {
-      return timeseriesCache.get(key);
-    }
-
     const count = Number(ts.count || nt);
     const startFloat = cell * count;
-    const arr = await fetchFloat32Range(DATA_ROOT + ts.file, startFloat, count);
+
+    const fullKey = `${currentModel}:${name}:${APP_DATA_VERSION}`;
+    const cellKey = `${currentModel}:${name}:${cell}:${APP_DATA_VERSION}`;
+
+    if (timeseriesCache.has(cellKey)) {
+      return timeseriesCache.get(cellKey);
+    }
+
+    let arr;
+
+    if (pointTimeseriesFullCache.has(fullKey)) {
+      const full = pointTimeseriesFullCache.get(fullKey);
+      arr = full.slice(startFloat, startFloat + count);
+    } else {
+      arr = await fetchFloat32Range(DATA_ROOT + ts.file, startFloat, count);
+    }
 
     const values = Array.from(arr.slice(0, nt), v =>
       Number.isFinite(v) ? Number(v) : NaN
     );
 
-    timeseriesCache.set(key, values);
+    timeseriesCache.set(cellKey, values);
     return values;
   }
 
@@ -1774,6 +1817,33 @@ async function extractPointTimeseries(cell, requestId) {
   }
 
   return out;
+}
+
+function clearPointTimeseriesCanvas(message = "") {
+  const canvas = els.tsCanvas;
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+
+  const width = Math.max(320, Math.round(rect.width * dpr));
+  const height = Math.max(220, Math.round(rect.height * dpr));
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "rgba(4, 15, 26, 0.96)";
+  ctx.fillRect(0, 0, width, height);
+
+  if (message) {
+    ctx.fillStyle = "rgba(245,247,251,0.72)";
+    ctx.font = `${13 * dpr}px ui-monospace, Menlo, Consolas, monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(message, width * 0.5, height * 0.5);
+  }
 }
 
 function drawPointTimeseries(series) {
@@ -1944,11 +2014,12 @@ async function showPointTimeseries(lon, lat) {
 
   if (cell < 0) {
     if (els.tsPanel) els.tsPanel.classList.remove("hidden");
-    if (els.tsTitle) els.tsTitle.textContent = "No model cell";
+    if (els.tsTitle) els.tsTitle.textContent = "No data";
     if (els.tsInfo) {
       els.tsInfo.textContent =
         `lon/lat: ${lon.toFixed(5)}, ${lat.toFixed(5)}`;
     }
+    clearPointTimeseriesCanvas("No data");
     return;
   }
 
@@ -2303,6 +2374,7 @@ async function boot() {
       updateTimeLabel();
 
       await setFrame(0);
+      preloadPointTimeseriesFiles();
 
       setStatus(
         `Ready

@@ -435,3 +435,25 @@ select option {
 #timeseries-canvas {
   height: 375px;
 }
+
+/* Compact control panel */
+#status-line {
+  display: none !important;
+}
+
+#layer-panel {
+  width: 240px;
+  padding: 13px;
+}
+
+#layer-panel .control-label {
+  margin: 10px 0 5px;
+}
+
+#layer-panel select {
+  height: 32px;
+}
+
+#legend-box {
+  width: 240px;
+}
