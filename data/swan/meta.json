@@ -43,6 +43,22 @@
     "color_by_speed": false,
     "direction_convention": "to"
   },
+  "timeseries": {
+    "layout": "cell_major",
+    "dtype": "float32",
+    "n": 512640,
+    "nt": 25,
+    "variables": {
+      "hs": {
+        "file": "timeseries/hs_ts.bin",
+        "count": 25
+      },
+      "tp": {
+        "file": "timeseries/tp_ts.bin",
+        "count": 25
+      }
+    }
+  },
   "frames": [
     {
       "index": 0,

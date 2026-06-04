@@ -200,6 +200,23 @@ def write_bin(path, arr):
     arr.astype(np.float32).ravel().tofile(path)
 
 
+def write_timeseries_bin(path, arr3d, wet):
+    """
+    Write cell-major time-series:
+      [cell0_t0, cell0_t1, ..., cell0_tN,
+       cell1_t0, cell1_t1, ..., cell1_tN, ...]
+
+    arr3d shape = (nt, ny, nx)
+    output shape conceptually = (ncell, nt)
+    """
+    out = arr3d.astype(np.float32, copy=True)
+    out[:, ~wet] = np.nan
+
+    nt, ny, nx = out.shape
+    out2d = out.reshape(nt, ny * nx).T.copy()
+    out2d.tofile(path)
+
+
 def main():
     args = parse_args()
 
@@ -293,6 +310,33 @@ def main():
             }
         })
 
+    # ------------------------------------------------------------
+    # Point time-series files for fast click sampling.
+    # These do not affect map rendering.
+    # ------------------------------------------------------------
+    ts_dir = out_dir / "timeseries"
+    ts_dir.mkdir(parents=True, exist_ok=True)
+
+    write_timeseries_bin(ts_dir / "hs_ts.bin", hs, wet)
+    write_timeseries_bin(ts_dir / "tp_ts.bin", tp, wet)
+
+    timeseries_meta = {
+        "layout": "cell_major",
+        "dtype": "float32",
+        "n": int(N_PER_FRAME),
+        "nt": int(nt),
+        "variables": {
+            "hs": {
+                "file": "timeseries/hs_ts.bin",
+                "count": int(nt)
+            },
+            "tp": {
+                "file": "timeseries/tp_ts.bin",
+                "count": int(nt)
+            }
+        }
+    }
+
     meta = {
         "model": "swan",
         "cycle": cycle,
@@ -338,6 +382,7 @@ def main():
             "color_by_speed": False,
             "direction_convention": args.dir_convention
         },
+        "timeseries": timeseries_meta,
         "frames": frames
     }
 

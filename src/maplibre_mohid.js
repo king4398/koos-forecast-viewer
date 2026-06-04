@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "swan_stride2_particle_debug_01";
+const APP_DATA_VERSION = "swan_point_timeseries_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -62,6 +62,7 @@ let currentFrame = 0;
 let playTimer = null;
 
 let scalarCache = new Map();
+let timeseriesCache = new Map();
 let currentU = null;
 let currentV = null;
 
@@ -187,6 +188,40 @@ async function fetchInt32(url, expectedLen = null) {
     throw new Error(`${url}: ${arr.length} != ${expectedLen}`);
   }
   return arr;
+}
+
+async function fetchFloat32Range(url, startFloat, count) {
+  const sep = url.includes("?") ? "&" : "?";
+  const fullUrl = url + sep + "v=" + APP_DATA_VERSION;
+
+  const byteStart = startFloat * 4;
+  const byteEnd = byteStart + count * 4 - 1;
+
+  const res = await fetch(fullUrl, {
+    headers: {
+      Range: `bytes=${byteStart}-${byteEnd}`
+    },
+    cache: "force-cache"
+  });
+
+  if (!res.ok && res.status !== 206) {
+    throw new Error(`${url}: ${res.status}`);
+  }
+
+  const buf = await res.arrayBuffer();
+  const arr = new Float32Array(buf);
+
+  /*
+   * If the server honors Range, arr.length == count.
+   * If it ignores Range and returns the full file, slice the requested part.
+   */
+  if (arr.length === count) return arr;
+
+  if (arr.length > startFloat + count) {
+    return arr.slice(startFloat, startFloat + count);
+  }
+
+  return arr.slice(0, Math.min(arr.length, count));
 }
 
 function compileShader(gl, type, src) {
@@ -1726,22 +1761,58 @@ function setSamplePointMarker(lon, lat) {
   });
 }
 
+async function loadPointTimeseriesVariable(name, cell) {
+  const ts = meta && meta.timeseries && meta.timeseries.variables
+    ? meta.timeseries.variables[name]
+    : null;
+
+  const nt = frameCount();
+
+  if (ts && ts.file && meta.timeseries.layout === "cell_major") {
+    const key = `${currentModel}:${name}:${cell}:${APP_DATA_VERSION}`;
+
+    if (timeseriesCache.has(key)) {
+      return timeseriesCache.get(key);
+    }
+
+    const count = Number(ts.count || nt);
+    const startFloat = cell * count;
+    const arr = await fetchFloat32Range(DATA_ROOT + ts.file, startFloat, count);
+
+    const values = Array.from(arr.slice(0, nt), v =>
+      Number.isFinite(v) ? Number(v) : NaN
+    );
+
+    timeseriesCache.set(key, values);
+    return values;
+  }
+
+  /*
+   * Fallback for models without dedicated point-time-series files.
+   * This is slower because it reads full frame rasters.
+   */
+  const values = [];
+
+  for (let i = 0; i < nt; i++) {
+    const arr = await loadFrame(name, i);
+    const val = arr && cell >= 0 && cell < arr.length ? arr[cell] : NaN;
+    values.push(Number.isFinite(val) ? Number(val) : NaN);
+  }
+
+  return values;
+}
+
 async function extractPointTimeseries(cell, requestId) {
   const vars = timeseriesVariablesForModel();
   const out = [];
 
   for (const [name, shortLabel] of vars) {
+    if (requestId !== sampleRequestId) return null;
+
     const vm = meta.variables[name];
-    const values = [];
+    const values = await loadPointTimeseriesVariable(name, cell);
 
-    for (let i = 0; i < frameCount(); i++) {
-      if (requestId !== sampleRequestId) return null;
-
-      const arr = await loadFrame(name, i);
-      const val = arr && cell >= 0 && cell < arr.length ? arr[cell] : NaN;
-
-      values.push(Number.isFinite(val) ? Number(val) : NaN);
-    }
+    if (requestId !== sampleRequestId) return null;
 
     out.push({
       name,
@@ -1961,7 +2032,8 @@ async function showPointTimeseries(lon, lat) {
     els.tsInfo.textContent =
       `cell: ${cell}\n` +
       `lon/lat: ${sampleLon.toFixed(5)}, ${sampleLat.toFixed(5)}\n` +
-      `frames: ${frameCount()}`;
+      `frames: ${frameCount()}\n` +
+      `timeseries: ${meta.timeseries ? "range" : "frame fallback"}`;
   }
 
   drawPointTimeseries(series);
