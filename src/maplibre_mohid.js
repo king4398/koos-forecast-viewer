@@ -1820,11 +1820,23 @@ function drawPointTimeseries(series) {
      * Use the same range as the map colorbar.
      * This makes point time series visually consistent with the scalar overlay.
      */
-    let vmin = Number.isFinite(s.vmin) ? s.vmin : 0.0;
-    let vmax = Number.isFinite(s.vmax) ? s.vmax : 1.0;
+    /*
+     * Auto-scale y-axis from this point's time series.
+     * This is only for the popup graph, not the map colorbar.
+     */
+    const finite = s.values.filter(Number.isFinite);
+
+    let vmin = finite.length ? Math.min(...finite) : 0.0;
+    let vmax = finite.length ? Math.max(...finite) : 1.0;
 
     if (Math.abs(vmax - vmin) < 1.0e-12) {
-      vmax = vmin + 1.0;
+      const base = Math.max(1.0, Math.abs(vmin));
+      vmin -= base * 0.05;
+      vmax += base * 0.05;
+    } else {
+      const margin = (vmax - vmin) * 0.10;
+      vmin -= margin;
+      vmax += margin;
     }
 
     ctx.fillStyle = "rgba(245,247,251,0.94)";
@@ -1857,6 +1869,16 @@ function drawPointTimeseries(series) {
 
     ctx.strokeStyle = colorByName[s.name] || fallbackColors[pidx % fallbackColors.length];
     ctx.lineWidth = 2.0 * dpr;
+
+    /*
+     * Clip each line to its own plot box.
+     * Prevents one variable from drawing into neighboring panels.
+     */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, x1 - x0, panelH);
+    ctx.clip();
+
     ctx.beginPath();
 
     let started = false;
@@ -1881,6 +1903,7 @@ function drawPointTimeseries(series) {
     }
 
     ctx.stroke();
+    ctx.restore();
   }
 
   ctx.fillStyle = "rgba(245,247,251,0.62)";
