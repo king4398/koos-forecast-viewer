@@ -172,14 +172,15 @@ def build_lonlat_and_corners():
     return lon2d, lat2d, lonc2d, latc2d
 
 
-def direction_to_unit_uv(dr_deg, convention="to"):
+def direction_to_unit_uv(dr_deg, hs=None, convention="to"):
     """
-    Dr degree를 wave direction 입자용 unit vector로 변환.
-    가정:
-      0 deg = North
-      90 deg = East
+    Dr degree를 wave direction 입자용 vector로 변환.
+    방향 = Dr
+    속도 크기 = Hs 기반
 
-    입자 방향이 반대로 보이면 --dir-convention from 으로 재생성.
+    Hs 0~3m 기준:
+      Hs 작음 -> 느림
+      Hs 큼   -> 빠름
     """
     theta = np.deg2rad(dr_deg.astype(np.float32))
 
@@ -189,6 +190,17 @@ def direction_to_unit_uv(dr_deg, convention="to"):
     if convention == "from":
         u = -u
         v = -v
+
+    if hs is None:
+        speed_factor = np.ones_like(dr_deg, dtype=np.float32)
+    else:
+        hs0 = hs.astype(np.float32, copy=False)
+        hs_norm = np.clip(hs0 / 3.0, 0.0, 1.0)
+        speed_factor = 0.25 + 1.25 * hs_norm
+        speed_factor = np.where(np.isfinite(hs0), speed_factor, np.nan).astype(np.float32)
+
+    u = u * speed_factor
+    v = v * speed_factor
 
     u = np.where(np.isfinite(dr_deg), u, np.nan).astype(np.float32)
     v = np.where(np.isfinite(dr_deg), v, np.nan).astype(np.float32)
@@ -284,7 +296,7 @@ def main():
         tp_frame[~wet] = np.nan
         dr_frame[~wet] = np.nan
 
-        u, v = direction_to_unit_uv(dr_frame, args.dir_convention)
+        u, v = direction_to_unit_uv(dr_frame, hs_frame, args.dir_convention)
         u[~wet] = np.nan
         v[~wet] = np.nan
 
@@ -366,7 +378,7 @@ def main():
                 "label": "Significant Wave Height",
                 "unit": "m",
                 "vmin": 0.0,
-                "vmax": 5.0,
+                "vmax": 3.0,
                 "cmap": "turbo"
             },
             "tp": {

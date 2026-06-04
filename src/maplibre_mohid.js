@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "mohid_swan_point_timeseries_01";
+const APP_DATA_VERSION = "swan_hs_speed_particles_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -936,17 +936,7 @@ function resetParticles() {
 function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
-  if (currentModel === "swan") {
-    /*
-     * SWAN wave direction particles: fixed, visible trail.
-     */
-    if (z <= 5.5) return 70;
-    if (z <= 7.5) return 58;
-    return 46;
-  }
-
   /*
-   * MOHID current particles.
    * Consistent zoom scaling:
    * low zoom = longer trail, high zoom = shorter trail.
    */
@@ -962,17 +952,7 @@ function particleTrailMax() {
 function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
-  if (currentModel === "swan") {
-    /*
-     * SWAN wave direction particles use fixed visual speed.
-     */
-    if (z <= 5.5) return 0.0075;
-    if (z <= 7.5) return 0.0068;
-    return 0.0062;
-  }
-
   /*
-   * MOHID current particles.
    * Consistent zoom scaling:
    * low zoom = faster, high zoom = calmer.
    */
@@ -1108,14 +1088,6 @@ function speedToRgb01(speed) {
 
 
 function particleColor01(speed, alpha) {
-  /*
-   * MOHID current particles can use speed color.
-   * SWAN particles represent wave direction only, so use a bright fixed color.
-   */
-  if (currentModel === "swan") {
-    return [0.92, 0.98, 1.0, alpha];
-  }
-
   if (particlesColoredBySpeed()) {
     const c = speedToRgb01(speed);
     return [c[0], c[1], c[2], alpha];
@@ -1236,16 +1208,8 @@ function buildParticleBuffers() {
         a1 = (0.22 + 0.68 * Math.pow(t1, 1.05)) * fadeFactor * zoomAlphaBoost;
       }
 
-      if (currentModel === "swan") {
-        /*
-         * SWAN wave-direction particles need to stay visible on top of Hs/Tp.
-         */
-        a0 = (0.22 + 0.34 * Math.pow(t0, 1.10)) * fadeFactor * zoomAlphaBoost;
-        a1 = (0.38 + 0.54 * Math.pow(t1, 1.00)) * fadeFactor * zoomAlphaBoost;
-      }
-
-      a0 = Math.min(a0, currentModel === "swan" ? 0.70 : (particlesColoredBySpeed() ? 0.55 : 0.40));
-      a1 = Math.min(a1, currentModel === "swan" ? 0.95 : (particlesColoredBySpeed() ? 0.90 : 0.65));
+      a0 = Math.min(a0, particlesColoredBySpeed() ? 0.55 : 0.40);
+      a1 = Math.min(a1, particlesColoredBySpeed() ? 0.90 : 0.65);
 
       const c0 = particleColor01(speed0, a0);
       const c1 = particleColor01(speed1, a1);
@@ -1291,32 +1255,16 @@ function uploadAndDrawParticles(gl, matrix) {
    * Quad-line particle width in screen pixels.
    * Wider than GL_LINES, but still natural.
    */
-  let widthPx;
+  let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
 
-  if (currentModel === "swan") {
-    /*
-     * SWAN particles represent wave direction only.
-     * Keep them visible separately from thin MOHID current particles.
-     */
-    widthPx = 1.05;
-
-    if (z <= 4.8) widthPx *= 0.95;
-    else if (z <= 5.5) widthPx *= 0.98;
-    else if (z <= 6.5) widthPx *= 1.00;
-    else if (z <= 8.5) widthPx *= 1.02;
-    else widthPx *= 1.05;
-  } else {
-    widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
-
-    /*
-     * Thin particle dashes across zoom levels.
-     */
-    if (z <= 4.8) widthPx *= 0.30;
-    else if (z <= 5.5) widthPx *= 0.36;
-    else if (z <= 6.5) widthPx *= 0.42;
-    else if (z <= 8.5) widthPx *= 0.46;
-    else widthPx *= 0.50;
-  }
+  /*
+   * Thin particle dashes across zoom levels.
+   */
+  if (z <= 4.8) widthPx *= 0.30;
+  else if (z <= 5.5) widthPx *= 0.36;
+  else if (z <= 6.5) widthPx *= 0.42;
+  else if (z <= 8.5) widthPx *= 0.46;
+  else widthPx *= 0.50;
 
   gl.useProgram(GLState.particleProgram);
 
@@ -1999,8 +1947,7 @@ async function showPointTimeseries(lon, lat) {
     if (els.tsTitle) els.tsTitle.textContent = "No model cell";
     if (els.tsInfo) {
       els.tsInfo.textContent =
-        `clicked: ${lon.toFixed(5)}, ${lat.toFixed(5)}\n` +
-        `No valid ${MODEL_DEFS[currentModel].label} cell nearby`;
+        `lon/lat: ${lon.toFixed(5)}, ${lat.toFixed(5)}`;
     }
     return;
   }
@@ -2019,8 +1966,8 @@ async function showPointTimeseries(lon, lat) {
   }
   if (els.tsInfo) {
     els.tsInfo.textContent =
-      `cell: ${cell}\n` +
-      `lon/lat: ${sampleLon.toFixed(5)}, ${sampleLat.toFixed(5)}\n` +
+      `lon/lat: ${sampleLon.toFixed(5)}, ${sampleLat.toFixed(5)}
+` +
       `loading...`;
   }
 
@@ -2030,10 +1977,7 @@ async function showPointTimeseries(lon, lat) {
 
   if (els.tsInfo) {
     els.tsInfo.textContent =
-      `cell: ${cell}\n` +
-      `lon/lat: ${sampleLon.toFixed(5)}, ${sampleLat.toFixed(5)}\n` +
-      `frames: ${frameCount()}\n` +
-      `timeseries: ${meta.timeseries ? "range" : "frame fallback"}`;
+      `lon/lat: ${sampleLon.toFixed(5)}, ${sampleLat.toFixed(5)}`;
   }
 
   drawPointTimeseries(series);

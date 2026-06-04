@@ -27,7 +27,7 @@
       "label": "Significant Wave Height",
       "unit": "m",
       "vmin": 0.0,
-      "vmax": 5.0,
+      "vmax": 3.0,
       "cmap": "turbo"
     },
     "tp": {
