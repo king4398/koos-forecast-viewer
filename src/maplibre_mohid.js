@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "swan_point_timeseries_01";
+const APP_DATA_VERSION = "mohid_swan_point_timeseries_01";
 
 const MODEL_DEFS = {
   mohid: {

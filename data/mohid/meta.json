@@ -449,5 +449,29 @@
         "max": 1.7949974536895752
       }
     }
+  },
+  "timeseries": {
+    "layout": "cell_major",
+    "dtype": "float32",
+    "n": 128160,
+    "nt": 25,
+    "variables": {
+      "temperature": {
+        "file": "timeseries/temperature_ts.bin",
+        "count": 25
+      },
+      "salinity": {
+        "file": "timeseries/salinity_ts.bin",
+        "count": 25
+      },
+      "ssh": {
+        "file": "timeseries/ssh_ts.bin",
+        "count": 25
+      },
+      "current_speed": {
+        "file": "timeseries/current_speed_ts.bin",
+        "count": 25
+      }
+    }
   }
 }
