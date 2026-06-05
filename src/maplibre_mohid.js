@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "wrf_particle_color_label_fix_01";
+const APP_DATA_VERSION = "wrf_particle_color_label_fix_02";
 
 const MODEL_DEFS = {
   mohid: {
@@ -1189,14 +1189,19 @@ function updateParticles() {
 }
 
 function speedToRgb01(speed) {
-  const vm = meta.variables.current_speed || { vmin: 0.0, vmax: 1.0 };
+  const varName = particleColorVariableForCurrentView();
+  const vm = varName && meta && meta.variables && meta.variables[varName]
+    ? meta.variables[varName]
+    : { vmin: 0.0, vmax: 1.0 };
 
-  let t = (speed - vm.vmin) / Math.max(1.0e-12, vm.vmax - vm.vmin);
+  let t = (speed - Number(vm.vmin)) / Math.max(1.0e-12, Number(vm.vmax) - Number(vm.vmin));
 
   if (!Number.isFinite(t)) t = 0.0;
-
   t = Math.max(0.0, Math.min(1.0, t));
 
+  /*
+   * Same visual ramp as Wind scalar map / turbo-like legend.
+   */
   const stops = [
     [0.05, 0.18, 0.95],
     [0.05, 0.62, 1.00],
@@ -1219,7 +1224,6 @@ function speedToRgb01(speed) {
     a[2] * (1.0 - f) + b[2] * f
   ];
 }
-
 
 
 function particleColor01(speed, alpha) {
@@ -2503,7 +2507,7 @@ function buildPressureContourGeoJSON(values) {
            * LineString contour segments are too short for symbol-placement: line.
            */
           labelCounter[level] += 1;
-          if (level % 4 === 0 && (labelCounter[level] === 8 || labelCounter[level] % 55 === 0)) {
+          if (level % 4 === 0 && (labelCounter[level] === 3 || labelCounter[level] % 25 === 0)) {
             features.push({
               type: "Feature",
               geometry: {
