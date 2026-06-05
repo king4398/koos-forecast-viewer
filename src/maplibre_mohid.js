@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "smooth_model_switch_fix_02";
+const APP_DATA_VERSION = "fix_model_switch_and_initial_view_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -2015,7 +2015,7 @@ function resetModelRuntimeState() {
 
   resetViewTransientState();
 
-  frameCache.clear();
+  scalarCache.clear();
   timeseriesCache.clear();
   pointTimeseriesFullCache.clear();
 
@@ -3222,62 +3222,29 @@ function makeMapStyle() {
   };
 }
 
-function urlViewState() {
-  const viewLon = Number(urlParams.get("lon"));
-  const viewLat = Number(urlParams.get("lat"));
-  const viewZoom = Number(urlParams.get("z"));
-
-  if (
-    Number.isFinite(viewLon) &&
-    Number.isFinite(viewLat) &&
-    Number.isFinite(viewZoom) &&
-    viewLon >= 100.0 && viewLon <= 150.0 &&
-    viewLat >= 15.0 && viewLat <= 55.0 &&
-    viewZoom >= 3.0 && viewZoom <= 12.0
-  ) {
-    return {
-      center: [viewLon, viewLat],
-      zoom: viewZoom
-    };
-  }
-
-  return null;
-}
-
 function fitToCurrentModelBoundsOnce() {
   if (!map || !meta || !meta.grid || didInitialFitBounds) return;
 
-  const uv = urlViewState();
-
-  if (uv) {
-    map.jumpTo({
-      center: uv.center,
-      zoom: uv.zoom
-    });
-  } else {
-    map.fitBounds(
-      [
-        [meta.grid.lon_min, meta.grid.lat_min],
-        [meta.grid.lon_max, meta.grid.lat_max]
-      ],
-      {
-        padding: 30,
-        duration: 0
-      }
-    );
-  }
+  map.fitBounds(
+    [
+      [meta.grid.lon_min, meta.grid.lat_min],
+      [meta.grid.lon_max, meta.grid.lat_max]
+    ],
+    {
+      padding: 30,
+      duration: 0
+    }
+  );
 
   didInitialFitBounds = true;
 }
 
 function initMap() {
-  const uv = urlViewState();
-
   map = new maplibregl.Map({
     container: "map",
     style: makeMapStyle(),
-    center: uv ? uv.center : [125.2, 36.2],
-    zoom: uv ? uv.zoom : 5.4,
+    center: [125.2, 36.2],
+    zoom: 5.4,
     minZoom: 3,
     maxZoom: 12,
     dragRotate: false,
@@ -3297,11 +3264,9 @@ async function switchModel(modelName) {
     const oldModel = currentModel;
 
     /*
-     * Keep current view naturally. Do not reload page and do not fit bounds.
+     * Keep current map view naturally.
+     * Do not reload page and do not fit bounds.
      */
-    const center = map ? map.getCenter() : null;
-    const zoom = map ? map.getZoom() : null;
-
     resetModelRuntimeState();
     removeModelLayers();
 
@@ -3312,21 +3277,13 @@ async function switchModel(modelName) {
 
     configureModelControls();
 
-    if (els.frameSlider) {
-      els.frameSlider.value = "0";
-    }
-
     const url = new URL(window.location.href);
     url.searchParams.set("model", currentModel);
     url.searchParams.set("v", APP_DATA_VERSION);
     url.searchParams.delete("cache");
-
-    if (center && Number.isFinite(center.lng) && Number.isFinite(center.lat) && Number.isFinite(zoom)) {
-      url.searchParams.set("lon", center.lng.toFixed(6));
-      url.searchParams.set("lat", center.lat.toFixed(6));
-      url.searchParams.set("z", zoom.toFixed(3));
-    }
-
+    url.searchParams.delete("lon");
+    url.searchParams.delete("lat");
+    url.searchParams.delete("z");
     window.history.replaceState({}, "", url.toString());
 
     meta = await fetchJson(DATA_ROOT + "meta.json");
@@ -3367,7 +3324,6 @@ async function switchModel(modelName) {
     isSwitchingModel = false;
   }
 }
-
 
 function bindEvents() {
   if (els.modelSelect) {
