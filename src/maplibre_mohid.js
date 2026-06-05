@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "marker_black_keep_timeseries_01";
+const APP_DATA_VERSION = "white_sample_marker_small_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -1943,12 +1943,24 @@ function ensureSamplePointLayer() {
       type: "circle",
       source: "sample-point",
       paint: {
-        "circle-radius": 6,
-        "circle-color": "#000000",
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 2
+        "circle-radius": 5,
+        "circle-color": "#ffffff",
+        "circle-stroke-color": "#111111",
+        "circle-stroke-width": 1.6
       }
     });
+  }
+
+  /*
+   * Keep the clicked point above model color layer/mesh,
+   * but do not force it above all UI overlays.
+   */
+  try {
+    if (map.getLayer("sample-point-circle")) {
+      map.moveLayer("sample-point-circle");
+    }
+  } catch (err) {
+    console.warn("sample point layer ordering failed:", err);
   }
 }
 
