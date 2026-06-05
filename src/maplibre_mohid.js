@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "wrf_model_01";
+const APP_DATA_VERSION = "wrf_wind_particle_tune_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -658,10 +658,10 @@ function particlesColoredBySpeed() {
     return currentVar === "current_speed" || currentVar === "current_particles";
   }
 
-  if (currentModel === "wrf") {
-    return currentVar === "wind_speed" || currentVar === "wind_particles";
-  }
-
+  /*
+   * WRF and SWAN particles are direction animations.
+   * Keep particles white; scalar color map already represents magnitude.
+   */
   return false;
 }
 
@@ -992,8 +992,20 @@ function particleTrailMax() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Consistent zoom scaling:
-   * low zoom = longer trail, high zoom = shorter trail.
+   * WRF wind vectors are much faster than ocean current vectors.
+   * Use shorter trails for wind.
+   */
+  if (currentModel === "wrf") {
+    if (z <= 4.8) return 42;
+    if (z <= 5.5) return 38;
+    if (z <= 6.5) return 32;
+    if (z <= 7.5) return 27;
+    if (z <= 8.5) return 23;
+    return 20;
+  }
+
+  /*
+   * MOHID/SWAN particle trail scaling.
    */
   if (z <= 4.8) return 90;
   if (z <= 5.5) return 80;
@@ -1008,8 +1020,20 @@ function particleFlowScale() {
   const z = map ? map.getZoom() : 6.0;
 
   /*
-   * Consistent zoom scaling:
-   * low zoom = faster, high zoom = calmer.
+   * WRF U10/V10 are m/s and are much larger than ocean currents.
+   * Use a smaller advection scale so wind particles do not shoot across the map.
+   */
+  if (currentModel === "wrf") {
+    if (z <= 4.8) return 0.00085;
+    if (z <= 5.5) return 0.00078;
+    if (z <= 6.5) return 0.00070;
+    if (z <= 7.5) return 0.00062;
+    if (z <= 8.5) return 0.00056;
+    return 0.00050;
+  }
+
+  /*
+   * MOHID/SWAN particle advection scale.
    */
   if (z <= 4.8) return 0.0084;
   if (z <= 5.5) return 0.0078;
@@ -1311,6 +1335,10 @@ function uploadAndDrawParticles(gl, matrix) {
    * Wider than GL_LINES, but still natural.
    */
   let widthPx = particlesColoredBySpeed() ? 0.68 : 0.58;
+
+  if (currentModel === "wrf") {
+    widthPx = 0.50;
+  }
 
   /*
    * Thin particle dashes across zoom levels.

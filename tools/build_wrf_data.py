@@ -218,7 +218,7 @@ def main():
                 "label": "Wind",
                 "unit": "m/s",
                 "vmin": 0.0,
-                "vmax": 20.0,
+                "vmax": 30.0,
                 "cmap": "turbo"
             },
             "t2": {
