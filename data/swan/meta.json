@@ -41,7 +41,7 @@
   "particles": {
     "kind": "wave_direction",
     "color_by_speed": false,
-    "direction_convention": "to"
+    "direction_convention": "from"
   },
   "timeseries": {
     "layout": "cell_major",

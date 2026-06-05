@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "wrf_particle_color_label_fix_02";
+const APP_DATA_VERSION = "pressure_labels_swan_dir_fix_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -2367,16 +2367,31 @@ function legendGradientCss(cmap) {
 }
 
 
+function emptyFeatureCollection() {
+  return {
+    type: "FeatureCollection",
+    features: []
+  };
+}
+
 function ensurePressureContourLayers() {
   if (!map) return;
 
-  if (!map.getSource("pressure-contours")) {
-    map.addSource("pressure-contours", {
+  /*
+   * Use separate sources for contour lines and contour labels.
+   * Mixed geometry source + filter was unreliable for label rendering.
+   */
+  if (!map.getSource("pressure-contours-line-src")) {
+    map.addSource("pressure-contours-line-src", {
       type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: []
-      }
+      data: emptyFeatureCollection()
+    });
+  }
+
+  if (!map.getSource("pressure-contours-label-src")) {
+    map.addSource("pressure-contours-label-src", {
+      type: "geojson",
+      data: emptyFeatureCollection()
     });
   }
 
@@ -2384,12 +2399,11 @@ function ensurePressureContourLayers() {
     map.addLayer({
       id: "pressure-contours-line",
       type: "line",
-      source: "pressure-contours",
-      filter: ["==", ["geometry-type"], "LineString"],
+      source: "pressure-contours-line-src",
       paint: {
-        "line-color": "rgba(245,255,235,0.86)",
+        "line-color": "rgba(245,255,235,0.88)",
         "line-width": 1.15,
-        "line-opacity": 0.82
+        "line-opacity": 0.86
       }
     });
   }
@@ -2398,17 +2412,17 @@ function ensurePressureContourLayers() {
     map.addLayer({
       id: "pressure-contours-label",
       type: "symbol",
-      source: "pressure-contours",
-      filter: ["==", ["geometry-type"], "Point"],
+      source: "pressure-contours-label-src",
       layout: {
         "text-field": ["get", "label"],
         "text-size": 11,
         "text-allow-overlap": true,
-        "text-ignore-placement": true
+        "text-ignore-placement": true,
+        "text-anchor": "center"
       },
       paint: {
         "text-color": "#f7fbff",
-        "text-halo-color": "rgba(10,20,30,0.95)",
+        "text-halo-color": "rgba(5,15,25,0.98)",
         "text-halo-width": 1.8
       }
     });
@@ -2416,12 +2430,13 @@ function ensurePressureContourLayers() {
 }
 
 function clearPressureContours() {
-  if (!map || !map.getSource("pressure-contours")) return;
+  if (!map) return;
 
-  map.getSource("pressure-contours").setData({
-    type: "FeatureCollection",
-    features: []
-  });
+  const lineSrc = map.getSource("pressure-contours-line-src");
+  if (lineSrc) lineSrc.setData(emptyFeatureCollection());
+
+  const labelSrc = map.getSource("pressure-contours-label-src");
+  if (labelSrc) labelSrc.setData(emptyFeatureCollection());
 }
 
 function contourInterp(p0, p1, v0, v1, level) {
@@ -2434,13 +2449,53 @@ function contourInterp(p0, p1, v0, v1, level) {
   ];
 }
 
+function addPressureContourSegment(lineFeatures, labelFeatures, pts, level, labelCounter) {
+  if (!pts || pts.length !== 2) return;
+
+  lineFeatures.push({
+    type: "Feature",
+    geometry: {
+      type: "LineString",
+      coordinates: [pts[0], pts[1]]
+    },
+    properties: {
+      level,
+      label: String(level)
+    }
+  });
+
+  /*
+   * Force labels to exist.
+   * Put labels on every 4 hPa line, with repeated labels along long contours.
+   */
+  labelCounter[level] = (labelCounter[level] || 0) + 1;
+
+  if (level % 4 === 0 && (labelCounter[level] === 2 || labelCounter[level] % 22 === 0)) {
+    labelFeatures.push({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [
+          0.5 * (pts[0][0] + pts[1][0]),
+          0.5 * (pts[0][1] + pts[1][1])
+        ]
+      },
+      properties: {
+        level,
+        label: String(level)
+      }
+    });
+  }
+}
+
 function buildPressureContourGeoJSON(values) {
-  const features = [];
+  const lineFeatures = [];
+  const labelFeatures = [];
 
   if (!grid || !values) {
     return {
-      type: "FeatureCollection",
-      features
+      lines: emptyFeatureCollection(),
+      labels: emptyFeatureCollection()
     };
   }
 
@@ -2454,6 +2509,7 @@ function buildPressureContourGeoJSON(values) {
 
   for (const level of levels) {
     labelCounter[level] = 0;
+
     for (let j = 0; j < ny - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
         const c00 = j * nx + i;
@@ -2490,70 +2546,24 @@ function buildPressureContourGeoJSON(values) {
         if (cross(v01, v00)) pts.push(contourInterp(p01, p00, v01, v00, level));
 
         if (pts.length === 2) {
-          features.push({
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates: [pts[0], pts[1]]
-            },
-            properties: {
-              level,
-              label: String(level)
-            }
-          });
-
-          /*
-           * Add guaranteed point labels.
-           * LineString contour segments are too short for symbol-placement: line.
-           */
-          labelCounter[level] += 1;
-          if (level % 4 === 0 && (labelCounter[level] === 3 || labelCounter[level] % 25 === 0)) {
-            features.push({
-              type: "Feature",
-              geometry: {
-                type: "Point",
-                coordinates: [
-                  0.5 * (pts[0][0] + pts[1][0]),
-                  0.5 * (pts[0][1] + pts[1][1])
-                ]
-              },
-              properties: {
-                level,
-                label: String(level)
-              }
-            });
-          }
+          addPressureContourSegment(lineFeatures, labelFeatures, [pts[0], pts[1]], level, labelCounter);
         } else if (pts.length === 4) {
-          features.push({
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates: [pts[0], pts[1]]
-            },
-            properties: {
-              level,
-              label: String(level)
-            }
-          });
-          features.push({
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates: [pts[2], pts[3]]
-            },
-            properties: {
-              level,
-              label: String(level)
-            }
-          });
+          addPressureContourSegment(lineFeatures, labelFeatures, [pts[0], pts[1]], level, labelCounter);
+          addPressureContourSegment(lineFeatures, labelFeatures, [pts[2], pts[3]], level, labelCounter);
         }
       }
     }
   }
 
   return {
-    type: "FeatureCollection",
-    features
+    lines: {
+      type: "FeatureCollection",
+      features: lineFeatures
+    },
+    labels: {
+      type: "FeatureCollection",
+      features: labelFeatures
+    }
   };
 }
 
@@ -2565,14 +2575,16 @@ function updatePressureContours(values) {
 
   ensurePressureContourLayers();
 
-  const src = map.getSource("pressure-contours");
-  if (!src) return;
+  const lineSrc = map.getSource("pressure-contours-line-src");
+  const labelSrc = map.getSource("pressure-contours-label-src");
 
-  src.setData(buildPressureContourGeoJSON(values));
+  if (!lineSrc || !labelSrc) return;
 
-  /*
-   * Keep contour labels above scalar custom layer/basemap labels.
-   */
+  const geo = buildPressureContourGeoJSON(values);
+
+  lineSrc.setData(geo.lines);
+  labelSrc.setData(geo.labels);
+
   try {
     if (map.getLayer("pressure-contours-line")) {
       map.moveLayer("pressure-contours-line");
