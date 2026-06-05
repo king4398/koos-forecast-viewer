@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "pressure_grid_labels_01";
+const APP_DATA_VERSION = "pressure_dom_labels_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -85,6 +85,9 @@ let lastParticleUpdateMs = 0;
 let sampleClickDown = null;
 let sampleRequestId = 0;
 let particleDrawVertexCount = 0;
+
+let pressureLabelContainer = null;
+let pressureLabelFeatures = [];
 
 const GLState = {
   gl: null,
@@ -2280,6 +2283,30 @@ async function showPointTimeseries(lon, lat) {
   drawPointTimeseries(series);
 }
 
+function bindPressureLabelEvents() {
+  if (!map || map.__pressureLabelEventsBound) return;
+
+  map.__pressureLabelEventsBound = true;
+
+  map.on("move", () => {
+    if (currentModel === "wrf" && scalarVariableForCurrentView() === "slp") {
+      renderPressureDomLabels();
+    }
+  });
+
+  map.on("zoom", () => {
+    if (currentModel === "wrf" && scalarVariableForCurrentView() === "slp") {
+      renderPressureDomLabels();
+    }
+  });
+
+  map.on("resize", () => {
+    if (currentModel === "wrf" && scalarVariableForCurrentView() === "slp") {
+      renderPressureDomLabels();
+    }
+  });
+}
+
 function bindPointTimeseriesEvents() {
   if (!map || map.__pointTimeseriesEventsBound) return;
 
@@ -2367,6 +2394,69 @@ function legendGradientCss(cmap) {
 }
 
 
+function ensurePressureLabelDom() {
+  if (!map) return null;
+
+  if (pressureLabelContainer) return pressureLabelContainer;
+
+  const parent = map.getContainer();
+
+  pressureLabelContainer = document.createElement("div");
+  pressureLabelContainer.id = "pressure-label-dom-layer";
+  pressureLabelContainer.className = "pressure-label-dom-layer";
+
+  parent.appendChild(pressureLabelContainer);
+
+  return pressureLabelContainer;
+}
+
+function clearPressureDomLabels() {
+  pressureLabelFeatures = [];
+
+  if (pressureLabelContainer) {
+    pressureLabelContainer.innerHTML = "";
+    pressureLabelContainer.style.display = "none";
+  }
+}
+
+function renderPressureDomLabels() {
+  if (!map || !pressureLabelFeatures || pressureLabelFeatures.length <= 0) {
+    if (pressureLabelContainer) pressureLabelContainer.style.display = "none";
+    return;
+  }
+
+  const container = ensurePressureLabelDom();
+  if (!container) return;
+
+  const rect = map.getContainer().getBoundingClientRect();
+
+  container.innerHTML = "";
+  container.style.display = "block";
+
+  for (const f of pressureLabelFeatures) {
+    if (!f || !f.geometry || !Array.isArray(f.geometry.coordinates)) continue;
+
+    const coord = f.geometry.coordinates;
+    const label = f.properties && f.properties.label ? String(f.properties.label) : "";
+
+    if (!label) continue;
+
+    const pt = map.project({ lng: coord[0], lat: coord[1] });
+
+    if (pt.x < -30 || pt.x > rect.width + 30 || pt.y < -20 || pt.y > rect.height + 20) {
+      continue;
+    }
+
+    const el = document.createElement("div");
+    el.className = "pressure-label-dom";
+    el.textContent = label;
+    el.style.left = `${pt.x}px`;
+    el.style.top = `${pt.y}px`;
+
+    container.appendChild(el);
+  }
+}
+
 function emptyFeatureCollection() {
   return {
     type: "FeatureCollection",
@@ -2437,6 +2527,8 @@ function clearPressureContours() {
 
   const labelSrc = map.getSource("pressure-contours-label-src");
   if (labelSrc) labelSrc.setData(emptyFeatureCollection());
+
+  clearPressureDomLabels();
 }
 
 function contourInterp(p0, p1, v0, v1, level) {
@@ -2586,8 +2678,8 @@ function buildPressureContourGeoJSON(values) {
    * Instead of relying on very short contour segments, place sparse pressure
    * labels directly from the gridded SLP field.
    */
-  const labelStepX = 58;
-  const labelStepY = 46;
+  const labelStepX = 46;
+  const labelStepY = 36;
 
   for (let j = Math.floor(labelStepY * 0.5); j < ny; j += labelStepY) {
     for (let i = Math.floor(labelStepX * 0.5); i < nx; i += labelStepX) {
@@ -2644,6 +2736,13 @@ function updatePressureContours(values) {
 
   lineSrc.setData(geo.lines);
   labelSrc.setData(geo.labels);
+
+  /*
+   * Render labels as DOM elements.
+   * MapLibre symbol text can fail when the style has no glyphs.
+   */
+  pressureLabelFeatures = geo.labels && geo.labels.features ? geo.labels.features : [];
+  renderPressureDomLabels();
 
   try {
     if (map.getLayer("pressure-contours-line")) {
@@ -2908,6 +3007,7 @@ async function boot() {
 
       bindEvents();
       bindPointTimeseriesEvents();
+      bindPressureLabelEvents();
       updateLegend();
       updateTimeLabel();
 

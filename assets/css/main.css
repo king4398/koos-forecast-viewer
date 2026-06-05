@@ -457,3 +457,28 @@ select option {
 #legend-box {
   width: 240px;
 }
+
+/* Pressure contour labels rendered as DOM overlay.
+   This avoids MapLibre glyph/text-symbol issues. */
+.pressure-label-dom-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 25;
+}
+
+.pressure-label-dom {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(238, 246, 255, 0.86);
+  color: #0b2632;
+  font: 700 11px ui-monospace, Menlo, Consolas, monospace;
+  line-height: 15px;
+  box-shadow: 0 0 0 1px rgba(10, 25, 35, 0.18), 0 1px 4px rgba(0, 0, 0, 0.22);
+  white-space: nowrap;
+}
