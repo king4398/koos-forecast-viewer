@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "fix_initmap_preserve_view_01";
+const APP_DATA_VERSION = "smooth_model_switch_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -1493,6 +1493,21 @@ function stopParticles() {
   map.triggerRepaint();
 }
 
+function removeModelLayers() {
+  if (!map) return;
+
+  try {
+    if (map.getLayer("mohid-custom-layer")) {
+      map.removeLayer("mohid-custom-layer");
+    }
+  } catch (err) {
+    console.warn("remove mohid custom layer failed:", err);
+  }
+
+  clearPressureContours();
+  clearSamplePointMarker();
+}
+
 function makeMohidLayer() {
   return {
     id: "mohid-custom-layer",
@@ -1989,6 +2004,28 @@ function resetViewTransientState() {
    */
   closePointTimeseriesPanel();
   clearPressureContours();
+}
+
+function resetModelRuntimeState() {
+  stopPlay();
+  stopParticles();
+
+  resetViewTransientState();
+
+  frameCache.clear();
+  timeseriesCache.clear();
+  pointTimeseriesFullCache.clear();
+
+  particles = [];
+  particleDrawVertexCount = 0;
+
+  currentU = null;
+  currentV = null;
+
+  GLState.ready = false;
+  GLState.valuesReady = false;
+
+  grid = null;
 }
 
 async function loadPointTimeseriesVariable(name, cell) {
@@ -3205,6 +3242,10 @@ function initMap() {
     attributionControl: true
   });
 
+  /*
+   * First entry: fit to default/current model.
+   * Model switch: no page reload, so this does not run again.
+   */
   if (!hasUrlView) {
     map.fitBounds(
       [
@@ -3220,23 +3261,7 @@ function bindEvents() {
   if (els.modelSelect) {
     els.modelSelect.addEventListener("change", () => {
       const model = els.modelSelect.value || "mohid";
-
-      resetViewTransientState();
-
-      const center = map ? map.getCenter() : null;
-      const zoom = map ? map.getZoom() : null;
-
-      const url = new URL(window.location.href);
-      url.searchParams.set("model", model);
-      url.searchParams.set("cache", Date.now().toString());
-
-      if (center && Number.isFinite(center.lng) && Number.isFinite(center.lat) && Number.isFinite(zoom)) {
-        url.searchParams.set("lon", center.lng.toFixed(6));
-        url.searchParams.set("lat", center.lat.toFixed(6));
-        url.searchParams.set("z", zoom.toFixed(3));
-      }
-
-      window.location.href = url.toString();
+      switchModel(model);
     });
   }
 
