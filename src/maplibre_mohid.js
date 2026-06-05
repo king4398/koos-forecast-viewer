@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "pressure_dom_labels_01";
+const APP_DATA_VERSION = "pressure_isobar_labels_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -2597,7 +2597,54 @@ function buildPressureContourGeoJSON(values) {
   const levels = [];
   for (let lv = 990; lv <= 1030; lv += 2) levels.push(lv);
 
+  /*
+   * Label counter by pressure level.
+   * Labels are placed only on contour segments, not on arbitrary grid points.
+   */
+  const labelCounter = {};
+
+  function pushContourSegment(pts, level) {
+    if (!pts || pts.length !== 2) return;
+
+    lineFeatures.push({
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [pts[0], pts[1]]
+      },
+      properties: {
+        level,
+        label: String(level)
+      }
+    });
+
+    labelCounter[level] = (labelCounter[level] || 0) + 1;
+
+    /*
+     * Put pressure labels directly on isobar segments.
+     * Use every 2 hPa contour, but not every tiny cell segment.
+     */
+    if (labelCounter[level] === 10 || labelCounter[level] % 90 === 0) {
+      const lon = 0.5 * (pts[0][0] + pts[1][0]);
+      const lat = 0.5 * (pts[0][1] + pts[1][1]);
+
+      labelFeatures.push({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [lon, lat]
+        },
+        properties: {
+          level,
+          label: String(level)
+        }
+      });
+    }
+  }
+
   for (const level of levels) {
+    labelCounter[level] = 0;
+
     for (let j = 0; j < ny - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
         const c00 = j * nx + i;
@@ -2634,76 +2681,12 @@ function buildPressureContourGeoJSON(values) {
         if (cross(v01, v00)) pts.push(contourInterp(p01, p00, v01, v00, level));
 
         if (pts.length === 2) {
-          lineFeatures.push({
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates: [pts[0], pts[1]]
-            },
-            properties: {
-              level,
-              label: String(level)
-            }
-          });
+          pushContourSegment([pts[0], pts[1]], level);
         } else if (pts.length === 4) {
-          lineFeatures.push({
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates: [pts[0], pts[1]]
-            },
-            properties: {
-              level,
-              label: String(level)
-            }
-          });
-          lineFeatures.push({
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates: [pts[2], pts[3]]
-            },
-            properties: {
-              level,
-              label: String(level)
-            }
-          });
+          pushContourSegment([pts[0], pts[1]], level);
+          pushContourSegment([pts[2], pts[3]], level);
         }
       }
-    }
-  }
-
-  /*
-   * Guaranteed pressure labels.
-   * Instead of relying on very short contour segments, place sparse pressure
-   * labels directly from the gridded SLP field.
-   */
-  const labelStepX = 46;
-  const labelStepY = 36;
-
-  for (let j = Math.floor(labelStepY * 0.5); j < ny; j += labelStepY) {
-    for (let i = Math.floor(labelStepX * 0.5); i < nx; i += labelStepX) {
-      const c = j * nx + i;
-      const v = values[c];
-
-      if (!Number.isFinite(v)) continue;
-
-      const rounded = Math.round(v / 2.0) * 2;
-
-      if (rounded < 990 || rounded > 1030) continue;
-      if (!Number.isFinite(grid.lon[c]) || !Number.isFinite(grid.lat[c])) continue;
-
-      labelFeatures.push({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [grid.lon[c], grid.lat[c]]
-        },
-        properties: {
-          level: rounded,
-          label: String(rounded)
-        }
-      });
     }
   }
 

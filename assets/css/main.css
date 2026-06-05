@@ -482,3 +482,14 @@ select option {
   box-shadow: 0 0 0 1px rgba(10, 25, 35, 0.18), 0 1px 4px rgba(0, 0, 0, 0.22);
   white-space: nowrap;
 }
+
+/* Isobar labels: compact labels placed on pressure contour segments */
+.pressure-label-dom {
+  padding: 1px 6px !important;
+  border-radius: 9px !important;
+  background: rgba(236, 242, 255, 0.88) !important;
+  color: #17304a !important;
+  font: 800 10px ui-monospace, Menlo, Consolas, monospace !important;
+  line-height: 14px !important;
+  box-shadow: 0 0 0 1px rgba(70, 105, 135, 0.28), 0 1px 4px rgba(0, 0, 0, 0.22) !important;
+}
