@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "white_sample_marker_small_01";
+const APP_DATA_VERSION = "fixed_url_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -39,7 +39,7 @@ const MODEL_DEFS = {
 
 window.localStorage.removeItem("koos_forecast_model");
 const urlParams = new URLSearchParams(window.location.search);
-let currentModel = urlParams.get("model") || "mohid";
+let currentModel = "mohid";
 
 if (!MODEL_DEFS[currentModel]) currentModel = "mohid";
 
@@ -3288,15 +3288,6 @@ async function switchModel(modelName) {
     currentFrame = 0;
 
     configureModelControls();
-
-    const url = new URL(window.location.href);
-    url.searchParams.set("model", currentModel);
-    url.searchParams.set("v", APP_DATA_VERSION);
-    url.searchParams.delete("cache");
-    url.searchParams.delete("lon");
-    url.searchParams.delete("lat");
-    url.searchParams.delete("z");
-    window.history.replaceState({}, "", url.toString());
 
     meta = await fetchJson(DATA_ROOT + "meta.json");
 
