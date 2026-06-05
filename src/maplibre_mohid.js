@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "preload_ts_nodata_01";
+const APP_DATA_VERSION = "wrf_model_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -22,6 +22,17 @@ const MODEL_DEFS = {
     variables: [
       ["hs", "Significant Wave Height"],
       ["tp", "Peak Wave Period"]
+    ]
+  },
+  wrf: {
+    label: "WRF",
+    dataRoot: "data/wrf/",
+    defaultVar: "wind_speed",
+    variables: [
+      ["wind_speed", "Wind"],
+      ["wind_particles", "Wind (Particles)"],
+      ["t2", "2m Temperature"],
+      ["slp", "SLP"]
     ]
   }
 };
@@ -148,7 +159,7 @@ function configureModelControls() {
 }
 
 function isSwanModel() {
-  return currentModel === "swan";
+  return currentModel === "swan" || currentModel === "wrf";
 }
 
 
@@ -638,16 +649,26 @@ async function loadGrid() {
 
 function scalarVariableForCurrentView() {
   if (currentModel === "mohid" && currentVar === "current_particles") return "current_speed";
+  if (currentModel === "wrf" && currentVar === "wind_particles") return "wind_speed";
   return currentVar;
 }
 
 function particlesColoredBySpeed() {
-  return currentModel === "mohid" &&
-    (currentVar === "current_speed" || currentVar === "current_particles");
+  if (currentModel === "mohid") {
+    return currentVar === "current_speed" || currentVar === "current_particles";
+  }
+
+  if (currentModel === "wrf") {
+    return currentVar === "wind_speed" || currentVar === "wind_particles";
+  }
+
+  return false;
 }
 
 function scalarVisibleForCurrentView() {
-  return !(currentModel === "mohid" && currentVar === "current_particles");
+  if (currentModel === "mohid" && currentVar === "current_particles") return false;
+  if (currentModel === "wrf" && currentVar === "wind_particles") return false;
+  return true;
 }
 
 
@@ -728,7 +749,7 @@ function vectorAt(lon, lat) {
    * SWAN is a regular grid. Use direct nearest-cell lookup.
    * This avoids MOHID lookup smoothing issues and makes wave particles robust.
    */
-  if (currentModel === "swan") {
+  if (currentModel === "swan" || currentModel === "wrf") {
     const nx = grid.nx;
     const ny = grid.ny;
 
@@ -861,7 +882,7 @@ function particleTargetCount() {
    * Fixed Mid density.
    * UI particle density selector was removed.
    */
-  const base = currentModel === "swan" ? 1700 : 1200;
+  const base = currentModel === "swan" || currentModel === "wrf" ? 1700 : 1200;
   const z = map ? map.getZoom() : 6.0;
 
   let mul = 1.0;
@@ -1549,10 +1570,18 @@ function fmtLegendNumber(x, digits = 1) {
 function timeseriesVariablesForModel() {
   if (!meta || !meta.variables) return [];
 
-  if (currentModel === "swan") {
+  if (currentModel === "swan" || currentModel === "wrf") {
     return [
       ["hs", "Hs"],
       ["tp", "Tp"]
+    ].filter(([v]) => meta.variables[v]);
+  }
+
+  if (currentModel === "wrf") {
+    return [
+      ["wind_speed", "Wind"],
+      ["t2", "2m Temp"],
+      ["slp", "SLP"]
     ].filter(([v]) => meta.variables[v]);
   }
 
@@ -1584,7 +1613,7 @@ function findNearestSampleCell(lon, lat) {
   /*
    * SWAN regular grid: direct lookup first, then small radius search.
    */
-  if (currentModel === "swan") {
+  if (currentModel === "swan" || currentModel === "wrf") {
     const nx = grid.nx;
     const ny = grid.ny;
 

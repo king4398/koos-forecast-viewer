@@ -1,0 +1,380 @@
+{
+  "format": "koos-wrf-grid-v1",
+  "system": "KOOS",
+  "model": "WRF",
+  "cycle": "2026051212",
+  "cycle_utc": "2026-05-12T12:00:00Z",
+  "forecast_start_utc": "2026-05-12T12:00:00Z",
+  "forecast_end_utc": "2026-05-13T12:00:00Z",
+  "source_files": {
+    "wrfout": "/home/koos_wrf/OUTPUT/WRF/Op_out/202605/wrfout_d02_2026051212.nc"
+  },
+  "grid": {
+    "nx": 360,
+    "ny": 360,
+    "corner_nx": 361,
+    "corner_ny": 361,
+    "n": 129600,
+    "lon_min": 116.21682739257812,
+    "lon_max": 134.08465576171875,
+    "lat_min": 29.607006072998047,
+    "lat_max": 43.102352142333984,
+    "lon_file": "grid/lon.bin",
+    "lat_file": "grid/lat.bin",
+    "mask_file": "grid/mask.bin",
+    "lon_corner_file": "grid/lon_corner.bin",
+    "lat_corner_file": "grid/lat_corner.bin",
+    "particle_lookup_file": "grid/particle_lookup_cell.bin",
+    "particle_lookup_nx": 360,
+    "particle_lookup_ny": 360
+  },
+  "variables": {
+    "wind_speed": {
+      "label": "Wind",
+      "unit": "m/s",
+      "vmin": 0.0,
+      "vmax": 20.0,
+      "cmap": "turbo"
+    },
+    "t2": {
+      "label": "2m Temperature",
+      "unit": "degC",
+      "vmin": 0.0,
+      "vmax": 32.0,
+      "cmap": "turbo"
+    },
+    "slp": {
+      "label": "SLP",
+      "unit": "hPa",
+      "vmin": 990.0,
+      "vmax": 1030.0,
+      "cmap": "bwr"
+    }
+  },
+  "timeseries": {
+    "layout": "cell_major",
+    "dtype": "float32",
+    "n": 129600,
+    "nt": 25,
+    "variables": {
+      "wind_speed": {
+        "file": "timeseries/wind_speed_ts.bin",
+        "count": 25
+      },
+      "t2": {
+        "file": "timeseries/t2_ts.bin",
+        "count": 25
+      },
+      "slp": {
+        "file": "timeseries/slp_ts.bin",
+        "count": 25
+      }
+    }
+  },
+  "particles": {
+    "kind": "wind",
+    "color_by_speed": true
+  },
+  "frames": [
+    {
+      "index": 0,
+      "time_utc": "2026-05-12T12:00:00Z",
+      "label": "2026-05-12 12:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0000.bin",
+        "t2": "t2/frame_0000.bin",
+        "slp": "slp/frame_0000.bin",
+        "current_u": "current_u/frame_0000.bin",
+        "current_v": "current_v/frame_0000.bin"
+      }
+    },
+    {
+      "index": 1,
+      "time_utc": "2026-05-12T13:00:00Z",
+      "label": "2026-05-12 13:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0001.bin",
+        "t2": "t2/frame_0001.bin",
+        "slp": "slp/frame_0001.bin",
+        "current_u": "current_u/frame_0001.bin",
+        "current_v": "current_v/frame_0001.bin"
+      }
+    },
+    {
+      "index": 2,
+      "time_utc": "2026-05-12T14:00:00Z",
+      "label": "2026-05-12 14:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0002.bin",
+        "t2": "t2/frame_0002.bin",
+        "slp": "slp/frame_0002.bin",
+        "current_u": "current_u/frame_0002.bin",
+        "current_v": "current_v/frame_0002.bin"
+      }
+    },
+    {
+      "index": 3,
+      "time_utc": "2026-05-12T15:00:00Z",
+      "label": "2026-05-12 15:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0003.bin",
+        "t2": "t2/frame_0003.bin",
+        "slp": "slp/frame_0003.bin",
+        "current_u": "current_u/frame_0003.bin",
+        "current_v": "current_v/frame_0003.bin"
+      }
+    },
+    {
+      "index": 4,
+      "time_utc": "2026-05-12T16:00:00Z",
+      "label": "2026-05-12 16:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0004.bin",
+        "t2": "t2/frame_0004.bin",
+        "slp": "slp/frame_0004.bin",
+        "current_u": "current_u/frame_0004.bin",
+        "current_v": "current_v/frame_0004.bin"
+      }
+    },
+    {
+      "index": 5,
+      "time_utc": "2026-05-12T17:00:00Z",
+      "label": "2026-05-12 17:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0005.bin",
+        "t2": "t2/frame_0005.bin",
+        "slp": "slp/frame_0005.bin",
+        "current_u": "current_u/frame_0005.bin",
+        "current_v": "current_v/frame_0005.bin"
+      }
+    },
+    {
+      "index": 6,
+      "time_utc": "2026-05-12T18:00:00Z",
+      "label": "2026-05-12 18:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0006.bin",
+        "t2": "t2/frame_0006.bin",
+        "slp": "slp/frame_0006.bin",
+        "current_u": "current_u/frame_0006.bin",
+        "current_v": "current_v/frame_0006.bin"
+      }
+    },
+    {
+      "index": 7,
+      "time_utc": "2026-05-12T19:00:00Z",
+      "label": "2026-05-12 19:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0007.bin",
+        "t2": "t2/frame_0007.bin",
+        "slp": "slp/frame_0007.bin",
+        "current_u": "current_u/frame_0007.bin",
+        "current_v": "current_v/frame_0007.bin"
+      }
+    },
+    {
+      "index": 8,
+      "time_utc": "2026-05-12T20:00:00Z",
+      "label": "2026-05-12 20:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0008.bin",
+        "t2": "t2/frame_0008.bin",
+        "slp": "slp/frame_0008.bin",
+        "current_u": "current_u/frame_0008.bin",
+        "current_v": "current_v/frame_0008.bin"
+      }
+    },
+    {
+      "index": 9,
+      "time_utc": "2026-05-12T21:00:00Z",
+      "label": "2026-05-12 21:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0009.bin",
+        "t2": "t2/frame_0009.bin",
+        "slp": "slp/frame_0009.bin",
+        "current_u": "current_u/frame_0009.bin",
+        "current_v": "current_v/frame_0009.bin"
+      }
+    },
+    {
+      "index": 10,
+      "time_utc": "2026-05-12T22:00:00Z",
+      "label": "2026-05-12 22:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0010.bin",
+        "t2": "t2/frame_0010.bin",
+        "slp": "slp/frame_0010.bin",
+        "current_u": "current_u/frame_0010.bin",
+        "current_v": "current_v/frame_0010.bin"
+      }
+    },
+    {
+      "index": 11,
+      "time_utc": "2026-05-12T23:00:00Z",
+      "label": "2026-05-12 23:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0011.bin",
+        "t2": "t2/frame_0011.bin",
+        "slp": "slp/frame_0011.bin",
+        "current_u": "current_u/frame_0011.bin",
+        "current_v": "current_v/frame_0011.bin"
+      }
+    },
+    {
+      "index": 12,
+      "time_utc": "2026-05-13T00:00:00Z",
+      "label": "2026-05-13 00:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0012.bin",
+        "t2": "t2/frame_0012.bin",
+        "slp": "slp/frame_0012.bin",
+        "current_u": "current_u/frame_0012.bin",
+        "current_v": "current_v/frame_0012.bin"
+      }
+    },
+    {
+      "index": 13,
+      "time_utc": "2026-05-13T01:00:00Z",
+      "label": "2026-05-13 01:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0013.bin",
+        "t2": "t2/frame_0013.bin",
+        "slp": "slp/frame_0013.bin",
+        "current_u": "current_u/frame_0013.bin",
+        "current_v": "current_v/frame_0013.bin"
+      }
+    },
+    {
+      "index": 14,
+      "time_utc": "2026-05-13T02:00:00Z",
+      "label": "2026-05-13 02:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0014.bin",
+        "t2": "t2/frame_0014.bin",
+        "slp": "slp/frame_0014.bin",
+        "current_u": "current_u/frame_0014.bin",
+        "current_v": "current_v/frame_0014.bin"
+      }
+    },
+    {
+      "index": 15,
+      "time_utc": "2026-05-13T03:00:00Z",
+      "label": "2026-05-13 03:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0015.bin",
+        "t2": "t2/frame_0015.bin",
+        "slp": "slp/frame_0015.bin",
+        "current_u": "current_u/frame_0015.bin",
+        "current_v": "current_v/frame_0015.bin"
+      }
+    },
+    {
+      "index": 16,
+      "time_utc": "2026-05-13T04:00:00Z",
+      "label": "2026-05-13 04:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0016.bin",
+        "t2": "t2/frame_0016.bin",
+        "slp": "slp/frame_0016.bin",
+        "current_u": "current_u/frame_0016.bin",
+        "current_v": "current_v/frame_0016.bin"
+      }
+    },
+    {
+      "index": 17,
+      "time_utc": "2026-05-13T05:00:00Z",
+      "label": "2026-05-13 05:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0017.bin",
+        "t2": "t2/frame_0017.bin",
+        "slp": "slp/frame_0017.bin",
+        "current_u": "current_u/frame_0017.bin",
+        "current_v": "current_v/frame_0017.bin"
+      }
+    },
+    {
+      "index": 18,
+      "time_utc": "2026-05-13T06:00:00Z",
+      "label": "2026-05-13 06:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0018.bin",
+        "t2": "t2/frame_0018.bin",
+        "slp": "slp/frame_0018.bin",
+        "current_u": "current_u/frame_0018.bin",
+        "current_v": "current_v/frame_0018.bin"
+      }
+    },
+    {
+      "index": 19,
+      "time_utc": "2026-05-13T07:00:00Z",
+      "label": "2026-05-13 07:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0019.bin",
+        "t2": "t2/frame_0019.bin",
+        "slp": "slp/frame_0019.bin",
+        "current_u": "current_u/frame_0019.bin",
+        "current_v": "current_v/frame_0019.bin"
+      }
+    },
+    {
+      "index": 20,
+      "time_utc": "2026-05-13T08:00:00Z",
+      "label": "2026-05-13 08:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0020.bin",
+        "t2": "t2/frame_0020.bin",
+        "slp": "slp/frame_0020.bin",
+        "current_u": "current_u/frame_0020.bin",
+        "current_v": "current_v/frame_0020.bin"
+      }
+    },
+    {
+      "index": 21,
+      "time_utc": "2026-05-13T09:00:00Z",
+      "label": "2026-05-13 09:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0021.bin",
+        "t2": "t2/frame_0021.bin",
+        "slp": "slp/frame_0021.bin",
+        "current_u": "current_u/frame_0021.bin",
+        "current_v": "current_v/frame_0021.bin"
+      }
+    },
+    {
+      "index": 22,
+      "time_utc": "2026-05-13T10:00:00Z",
+      "label": "2026-05-13 10:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0022.bin",
+        "t2": "t2/frame_0022.bin",
+        "slp": "slp/frame_0022.bin",
+        "current_u": "current_u/frame_0022.bin",
+        "current_v": "current_v/frame_0022.bin"
+      }
+    },
+    {
+      "index": 23,
+      "time_utc": "2026-05-13T11:00:00Z",
+      "label": "2026-05-13 11:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0023.bin",
+        "t2": "t2/frame_0023.bin",
+        "slp": "slp/frame_0023.bin",
+        "current_u": "current_u/frame_0023.bin",
+        "current_v": "current_v/frame_0023.bin"
+      }
+    },
+    {
+      "index": 24,
+      "time_utc": "2026-05-13T12:00:00Z",
+      "label": "2026-05-13 12:00:00 UTC",
+      "files": {
+        "wind_speed": "wind_speed/frame_0024.bin",
+        "t2": "t2/frame_0024.bin",
+        "slp": "slp/frame_0024.bin",
+        "current_u": "current_u/frame_0024.bin",
+        "current_v": "current_v/frame_0024.bin"
+      }
+    }
+  ]
+}
