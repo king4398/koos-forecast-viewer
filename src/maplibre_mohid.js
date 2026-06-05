@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "pressure_big_isobar_labels_02";
+const APP_DATA_VERSION = "pressure_big_isobar_labels_03";
 
 const MODEL_DEFS = {
   mohid: {
@@ -2713,8 +2713,8 @@ function screenLengthOfPolyline(line) {
   return len;
 }
 
-function labelCandidateFromPolyline(line, level) {
-  if (!map || !line || line.length < 2) return null;
+function labelCandidatesFromPolyline(line, level) {
+  if (!map || !line || line.length < 2) return [];
 
   let total = 0.0;
   const segLens = [];
@@ -2731,58 +2731,77 @@ function labelCandidateFromPolyline(line, level) {
   /*
    * Too-short contours should not get labels.
    */
-  if (total < 170.0) return null;
+  if (total < 130.0) return [];
 
   /*
-   * Put the label near the middle of the contour.
+   * Long isobars can have more than one label.
+   * This is based on screen length, so a very long contour line gets 2~3 labels.
    */
-  const target = total * 0.52;
-  let acc = 0.0;
+  let fractions = [0.52];
 
-  for (let i = 1; i < line.length; i++) {
-    const d = segLens[i - 1];
-
-    if (acc + d >= target) {
-      const f = d > 0.0 ? (target - acc) / d : 0.5;
-
-      const p0 = line[i - 1];
-      const p1 = line[i];
-
-      const lon = p0[0] * (1.0 - f) + p1[0] * f;
-      const lat = p0[1] * (1.0 - f) + p1[1] * f;
-
-      const pt = map.project({ lng: lon, lat });
-
-      return {
-        feature: {
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: [lon, lat]
-          },
-          properties: {
-            level,
-            label: String(level),
-            p0,
-            p1
-          }
-        },
-        x: pt.x,
-        y: pt.y,
-        screenLength: total
-      };
-    }
-
-    acc += d;
+  if (total >= 520.0) {
+    fractions = [0.33, 0.68];
   }
 
-  return null;
+  if (total >= 900.0) {
+    fractions = [0.25, 0.52, 0.78];
+  }
+
+  const candidates = [];
+
+  for (const frac of fractions) {
+    const target = total * frac;
+    let acc = 0.0;
+
+    for (let i = 1; i < line.length; i++) {
+      const d = segLens[i - 1];
+
+      if (acc + d >= target) {
+        const f = d > 0.0 ? (target - acc) / d : 0.5;
+
+        const p0 = line[i - 1];
+        const p1 = line[i];
+
+        const lon = p0[0] * (1.0 - f) + p1[0] * f;
+        const lat = p0[1] * (1.0 - f) + p1[1] * f;
+
+        const pt = map.project({ lng: lon, lat });
+
+        candidates.push({
+          feature: {
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [lon, lat]
+            },
+            properties: {
+              level,
+              label: String(level),
+              p0,
+              p1
+            }
+          },
+          x: pt.x,
+          y: pt.y,
+          screenLength: total
+        });
+
+        break;
+      }
+
+      acc += d;
+    }
+  }
+
+  return candidates;
 }
+
 
 function selectPressureLabels(labelCandidates) {
   /*
    * Big contours first. If a new label is too close to an existing one,
-   * skip it. This avoids crowded labels.
+   * skip it. Distance threshold is intentionally moderate so labels are
+   * not too sparse.
    */
   const selected = [];
 
@@ -2792,19 +2811,19 @@ function selectPressureLabels(labelCandidates) {
 
   /*
    * Minimum label spacing in screen pixels.
-   * Higher zoom can tolerate slightly closer labels.
+   * Reduced from the previous conservative setting.
    */
-  let minDist = 150.0;
-  if (z >= 7.5) minDist = 120.0;
-  else if (z <= 5.0) minDist = 175.0;
+  let minDist = 95.0;
+  if (z >= 7.5) minDist = 75.0;
+  else if (z <= 5.0) minDist = 115.0;
 
   /*
-   * Keep label count sane.
+   * Allow a few more labels, but still avoid clutter.
    */
   const rect = map.getContainer().getBoundingClientRect();
   const maxLabels = Math.max(
-    6,
-    Math.min(22, Math.round((rect.width * rect.height) / 85000))
+    8,
+    Math.min(34, Math.round((rect.width * rect.height) / 62000))
   );
 
   const sorted = labelCandidates.slice().sort((a, b) => {
@@ -2842,6 +2861,7 @@ function selectPressureLabels(labelCandidates) {
 
   return selected.map(c => c.feature);
 }
+
 
 function buildPressureContourGeoJSON(values) {
   const lineFeatures = [];
@@ -2931,10 +2951,10 @@ function buildPressureContourGeoJSON(values) {
         }
       });
 
-      const cand = labelCandidateFromPolyline(line, level);
+      const cands = labelCandidatesFromPolyline(line, level);
 
-      if (cand) {
-        labelCandidates.push(cand);
+      for (const cand of cands) {
+        if (cand) labelCandidates.push(cand);
       }
     }
   }
