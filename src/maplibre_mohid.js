@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "wrf_particles_slp_colormap_01";
+const APP_DATA_VERSION = "wrf_wind_particle_pressure_contour_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -676,10 +676,6 @@ function particlesColoredBySpeed() {
   }
 
   if (currentModel === "wrf") {
-    /*
-     * WRF Wind: scalar wind color + white particles.
-     * WRF Wind (Particles): colored particles only.
-     */
     return currentVar === "wind_particles";
   }
 
@@ -690,6 +686,13 @@ function scalarVisibleForCurrentView() {
   if (currentModel === "mohid" && currentVar === "current_particles") return false;
   if (currentModel === "wrf" && currentVar === "wind_particles") return false;
   return true;
+}
+
+function legendVariableForCurrentView() {
+  if (currentModel === "wrf" && currentVar === "wind_particles") return "wind_speed";
+  if (currentModel === "mohid" && currentVar === "current_particles") return "current_speed";
+  if (!scalarVisibleForCurrentView()) return null;
+  return scalarVariableForCurrentView();
 }
 
 
@@ -1590,6 +1593,7 @@ async function setFrame(i) {
 
   updateTimeLabel();
   updateLegend();
+  updatePressureContours(values);
 
   resetParticles();
   startParticles();
@@ -1839,21 +1843,25 @@ async function loadPointTimeseriesVariable(name, cell) {
       return timeseriesCache.get(cellKey);
     }
 
-    let arr;
+    try {
+      let arr;
 
-    if (pointTimeseriesFullCache.has(fullKey)) {
-      const full = pointTimeseriesFullCache.get(fullKey);
-      arr = full.slice(startFloat, startFloat + count);
-    } else {
-      arr = await fetchFloat32Range(DATA_ROOT + ts.file, startFloat, count);
+      if (pointTimeseriesFullCache.has(fullKey)) {
+        const full = pointTimeseriesFullCache.get(fullKey);
+        arr = full.slice(startFloat, startFloat + count);
+      } else {
+        arr = await fetchFloat32Range(DATA_ROOT + ts.file, startFloat, count);
+      }
+
+      const values = Array.from(arr.slice(0, nt), v =>
+        Number.isFinite(v) ? Number(v) : NaN
+      );
+
+      timeseriesCache.set(cellKey, values);
+      return values;
+    } catch (err) {
+      console.warn("range timeseries failed, fallback to frame files:", name, err);
     }
-
-    const values = Array.from(arr.slice(0, nt), v =>
-      Number.isFinite(v) ? Number(v) : NaN
-    );
-
-    timeseriesCache.set(cellKey, values);
-    return values;
   }
 
   /*
@@ -1959,7 +1967,10 @@ function drawPointTimeseries(series) {
     ssh: "rgba(145, 255, 165, 1.0)",
     current_speed: "rgba(255, 120, 125, 1.0)",
     hs: "rgba(90, 190, 255, 1.0)",
-    tp: "rgba(255, 210, 95, 1.0)"
+    tp: "rgba(255, 210, 95, 1.0)",
+    wind_speed: "rgba(120, 210, 255, 1.0)",
+    t2: "rgba(255, 170, 95, 1.0)",
+    slp: "rgba(220, 220, 170, 1.0)"
   };
 
   const fallbackColors = [
@@ -2120,9 +2131,23 @@ async function showPointTimeseries(lon, lat) {
       `loading...`;
   }
 
-  const series = await extractPointTimeseries(cell, requestId);
+  let series = null;
 
-  if (!series || requestId !== sampleRequestId) return;
+  try {
+    series = await extractPointTimeseries(cell, requestId);
+  } catch (err) {
+    console.error("point timeseries failed:", err);
+  }
+
+  if (!series || requestId !== sampleRequestId) {
+    if (els.tsTitle) els.tsTitle.textContent = "No data";
+    if (els.tsInfo) {
+      els.tsInfo.textContent =
+        `lon/lat: ${sampleLon.toFixed(5)}, ${sampleLat.toFixed(5)}`;
+    }
+    clearPointTimeseriesCanvas("No data");
+    return;
+  }
 
   if (els.tsInfo) {
     els.tsInfo.textContent =
@@ -2218,15 +2243,195 @@ function legendGradientCss(cmap) {
   return "linear-gradient(to right, rgb(13,46,242), rgb(13,158,255), rgb(26,199,107), rgb(235,219,56), rgb(242,140,26), rgb(209,31,20))";
 }
 
+
+function ensurePressureContourLayers() {
+  if (!map) return;
+
+  if (!map.getSource("pressure-contours")) {
+    map.addSource("pressure-contours", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: []
+      }
+    });
+  }
+
+  if (!map.getLayer("pressure-contours-line")) {
+    map.addLayer({
+      id: "pressure-contours-line",
+      type: "line",
+      source: "pressure-contours",
+      paint: {
+        "line-color": "rgba(245,255,235,0.86)",
+        "line-width": 1.15,
+        "line-opacity": 0.82
+      }
+    });
+  }
+
+  if (!map.getLayer("pressure-contours-label")) {
+    map.addLayer({
+      id: "pressure-contours-label",
+      type: "symbol",
+      source: "pressure-contours",
+      layout: {
+        "symbol-placement": "line",
+        "text-field": ["get", "label"],
+        "text-size": 10,
+        "text-allow-overlap": false,
+        "text-ignore-placement": false
+      },
+      paint: {
+        "text-color": "#f5f8ff",
+        "text-halo-color": "rgba(10,20,30,0.90)",
+        "text-halo-width": 1.4
+      }
+    });
+  }
+}
+
+function clearPressureContours() {
+  if (!map || !map.getSource("pressure-contours")) return;
+
+  map.getSource("pressure-contours").setData({
+    type: "FeatureCollection",
+    features: []
+  });
+}
+
+function contourInterp(p0, p1, v0, v1, level) {
+  const den = v1 - v0;
+  const t = Math.abs(den) < 1.0e-12 ? 0.5 : (level - v0) / den;
+
+  return [
+    p0[0] + (p1[0] - p0[0]) * t,
+    p0[1] + (p1[1] - p0[1]) * t
+  ];
+}
+
+function buildPressureContourGeoJSON(values) {
+  const features = [];
+
+  if (!grid || !values) {
+    return {
+      type: "FeatureCollection",
+      features
+    };
+  }
+
+  const nx = grid.nx;
+  const ny = grid.ny;
+
+  const levels = [];
+  for (let lv = 990; lv <= 1030; lv += 2) levels.push(lv);
+
+  for (const level of levels) {
+    for (let j = 0; j < ny - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const c00 = j * nx + i;
+        const c10 = j * nx + i + 1;
+        const c11 = (j + 1) * nx + i + 1;
+        const c01 = (j + 1) * nx + i;
+
+        const v00 = values[c00];
+        const v10 = values[c10];
+        const v11 = values[c11];
+        const v01 = values[c01];
+
+        if (
+          !Number.isFinite(v00) || !Number.isFinite(v10) ||
+          !Number.isFinite(v11) || !Number.isFinite(v01)
+        ) {
+          continue;
+        }
+
+        const p00 = [grid.lon[c00], grid.lat[c00]];
+        const p10 = [grid.lon[c10], grid.lat[c10]];
+        const p11 = [grid.lon[c11], grid.lat[c11]];
+        const p01 = [grid.lon[c01], grid.lat[c01]];
+
+        const pts = [];
+
+        function cross(a, b) {
+          return (a <= level && b > level) || (a > level && b <= level);
+        }
+
+        if (cross(v00, v10)) pts.push(contourInterp(p00, p10, v00, v10, level));
+        if (cross(v10, v11)) pts.push(contourInterp(p10, p11, v10, v11, level));
+        if (cross(v11, v01)) pts.push(contourInterp(p11, p01, v11, v01, level));
+        if (cross(v01, v00)) pts.push(contourInterp(p01, p00, v01, v00, level));
+
+        if (pts.length === 2) {
+          features.push({
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: [pts[0], pts[1]]
+            },
+            properties: {
+              level,
+              label: String(level)
+            }
+          });
+        } else if (pts.length === 4) {
+          features.push({
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: [pts[0], pts[1]]
+            },
+            properties: {
+              level,
+              label: String(level)
+            }
+          });
+          features.push({
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: [pts[2], pts[3]]
+            },
+            properties: {
+              level,
+              label: String(level)
+            }
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    type: "FeatureCollection",
+    features
+  };
+}
+
+function updatePressureContours(values) {
+  if (currentModel !== "wrf" || scalarVariableForCurrentView() !== "slp" || !scalarVisibleForCurrentView()) {
+    clearPressureContours();
+    return;
+  }
+
+  ensurePressureContourLayers();
+
+  const src = map.getSource("pressure-contours");
+  if (!src) return;
+
+  src.setData(buildPressureContourGeoJSON(values));
+}
+
 function updateLegend() {
   if (!els.legendBox || !meta || !meta.variables) return;
 
-  if (!scalarVisibleForCurrentView()) {
+  const varName = legendVariableForCurrentView();
+
+  if (!varName) {
     els.legendBox.style.display = "none";
     return;
   }
 
-  const varName = scalarVariableForCurrentView();
   const vm = meta.variables[varName];
 
   if (!vm) {
