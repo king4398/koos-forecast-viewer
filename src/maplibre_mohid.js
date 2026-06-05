@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "fixed_url_01";
+const APP_DATA_VERSION = "clean_public_url_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -39,6 +39,19 @@ const MODEL_DEFS = {
 
 window.localStorage.removeItem("koos_forecast_model");
 const urlParams = new URLSearchParams(window.location.search);
+
+/*
+ * Keep the public URL clean.
+ * Query strings from old cache-busting/model links are ignored.
+ */
+if (window.location.search || window.location.hash) {
+  window.history.replaceState(
+    {},
+    "",
+    window.location.origin + window.location.pathname
+  );
+}
+
 let currentModel = "mohid";
 
 if (!MODEL_DEFS[currentModel]) currentModel = "mohid";
