@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "wrf_wind_particle_pressure_contour_01";
+const APP_DATA_VERSION = "wrf_click_contour_label_fix_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -770,10 +770,30 @@ function vectorAt(lon, lat) {
   if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return null;
 
   /*
+   * WRF is curvilinear in lon/lat. Use nearest real grid point.
+   */
+  if (currentModel === "wrf") {
+    const cell = bruteForceNearestSampleCell(lon, lat);
+
+    if (cell < 0 || cell >= grid.n) return null;
+    if (grid.mask && grid.mask[cell] <= 0.0) return null;
+
+    const u = currentU[cell];
+    const v = currentV[cell];
+
+    if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
+
+    const speed = Math.hypot(u, v);
+    if (!Number.isFinite(speed) || speed <= 0.0) return null;
+
+    return { u, v, speed };
+  }
+
+  /*
    * SWAN is a regular grid. Use direct nearest-cell lookup.
    * This avoids MOHID lookup smoothing issues and makes wave particles robust.
    */
-  if (currentModel === "swan" || currentModel === "wrf") {
+  if (currentModel === "swan") {
     const nx = grid.nx;
     const ny = grid.ny;
 
@@ -1623,7 +1643,7 @@ function fmtLegendNumber(x, digits = 1) {
 function timeseriesVariablesForModel() {
   if (!meta || !meta.variables) return [];
 
-  if (currentModel === "swan" || currentModel === "wrf") {
+  if (currentModel === "swan") {
     return [
       ["hs", "Hs"],
       ["tp", "Tp"]
@@ -1653,6 +1673,28 @@ function isValidSampleCell(cell) {
   return true;
 }
 
+function bruteForceNearestSampleCell(lon, lat) {
+  let best = -1;
+  let bestD2 = 1.0e30;
+  const coslat = Math.max(0.2, Math.cos(lat * Math.PI / 180.0));
+
+  for (const c of grid.validCellIndices || []) {
+    if (!isValidSampleCell(c)) continue;
+
+    const dlon = (grid.lon[c] - lon) * coslat;
+    const dlat = grid.lat[c] - lat;
+    const d2 = dlon * dlon + dlat * dlat;
+
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      best = c;
+    }
+  }
+
+  return best;
+}
+
+
 function findNearestSampleCell(lon, lat) {
   if (!grid || !meta || !meta.grid) return -1;
 
@@ -1664,9 +1706,16 @@ function findNearestSampleCell(lon, lat) {
   if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return -1;
 
   /*
+   * WRF XLAT/XLON can be curvilinear. Use true nearest lon/lat search.
+   */
+  if (currentModel === "wrf") {
+    return bruteForceNearestSampleCell(lon, lat);
+  }
+
+  /*
    * SWAN regular grid: direct lookup first, then small radius search.
    */
-  if (currentModel === "swan" || currentModel === "wrf") {
+  if (currentModel === "swan") {
     const nx = grid.nx;
     const ny = grid.ny;
 
@@ -2262,6 +2311,7 @@ function ensurePressureContourLayers() {
       id: "pressure-contours-line",
       type: "line",
       source: "pressure-contours",
+      filter: ["==", ["geometry-type"], "LineString"],
       paint: {
         "line-color": "rgba(245,255,235,0.86)",
         "line-width": 1.15,
@@ -2275,8 +2325,8 @@ function ensurePressureContourLayers() {
       id: "pressure-contours-label",
       type: "symbol",
       source: "pressure-contours",
+      filter: ["==", ["geometry-type"], "Point"],
       layout: {
-        "symbol-placement": "line",
         "text-field": ["get", "label"],
         "text-size": 10,
         "text-allow-overlap": false,
@@ -2374,6 +2424,26 @@ function buildPressureContourGeoJSON(values) {
               label: String(level)
             }
           });
+
+          /*
+           * Add sparse point labels. Line segments are too short for line-placement labels.
+           */
+          if ((i + j) % 80 === 0 && level % 4 === 0) {
+            features.push({
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [
+                  0.5 * (pts[0][0] + pts[1][0]),
+                  0.5 * (pts[0][1] + pts[1][1])
+                ]
+              },
+              properties: {
+                level,
+                label: String(level)
+              }
+            });
+          }
         } else if (pts.length === 4) {
           features.push({
             type: "Feature",
