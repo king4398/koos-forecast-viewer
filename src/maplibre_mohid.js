@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "preserve_view_switch_cleanup_01";
+const APP_DATA_VERSION = "fix_initmap_preserve_view_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -3183,11 +3183,20 @@ function makeMapStyle() {
 }
 
 function initMap() {
+  const viewLon = Number(urlParams.get("lon"));
+  const viewLat = Number(urlParams.get("lat"));
+  const viewZoom = Number(urlParams.get("z"));
+
+  const hasUrlView =
+    Number.isFinite(viewLon) &&
+    Number.isFinite(viewLat) &&
+    Number.isFinite(viewZoom);
+
   map = new maplibregl.Map({
     container: "map",
     style: makeMapStyle(),
-    center: [125.2, 36.2],
-    zoom: 5.4,
+    center: hasUrlView ? [viewLon, viewLat] : [125.2, 36.2],
+    zoom: hasUrlView ? viewZoom : 5.4,
     minZoom: 3,
     maxZoom: 12,
     dragRotate: false,
@@ -3196,14 +3205,14 @@ function initMap() {
     attributionControl: true
   });
 
-  if (!preserveView) {
+  if (!hasUrlView) {
     map.fitBounds(
-    [
-      [meta.grid.lon_min, meta.grid.lat_min],
-      [meta.grid.lon_max, meta.grid.lat_max]
-    ],
-    { padding: 30, duration: 0 }
-  );
+      [
+        [meta.grid.lon_min, meta.grid.lat_min],
+        [meta.grid.lon_max, meta.grid.lat_max]
+      ],
+      { padding: 30, duration: 0 }
+    );
   }
 }
 
