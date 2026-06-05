@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "pressure_rotated_color_labels_01";
+const APP_DATA_VERSION = "pressure_big_isobar_labels_02";
 
 const MODEL_DEFS = {
   mohid: {
@@ -2510,7 +2510,7 @@ function renderPressureDomLabels() {
 
     const pt = map.project({ lng: coord[0], lat: coord[1] });
 
-    if (pt.x < -30 || pt.x > rect.width + 30 || pt.y < -20 || pt.y > rect.height + 20) {
+    if (pt.x < -40 || pt.x > rect.width + 40 || pt.y < -30 || pt.y > rect.height + 30) {
       continue;
     }
 
@@ -2526,10 +2526,6 @@ function renderPressureDomLabels() {
     el.style.left = `${pt.x}px`;
     el.style.top = `${pt.y}px`;
 
-    /*
-     * Same color family as the pressure colorbar.
-     * Use !important because previous CSS rules may also use !important.
-     */
     el.style.setProperty("background", pressureLabelBackground(level), "important");
     el.style.setProperty("color", pressureLabelTextColor(level), "important");
     el.style.setProperty(
@@ -2541,6 +2537,7 @@ function renderPressureDomLabels() {
     container.appendChild(el);
   }
 }
+
 
 function emptyFeatureCollection() {
   return {
@@ -2626,43 +2623,224 @@ function contourInterp(p0, p1, v0, v1, level) {
   ];
 }
 
-function addPressureContourSegment(lineFeatures, labelFeatures, pts, level, labelCounter) {
-  if (!pts || pts.length !== 2) return;
+function contourPointKey(p) {
+  /*
+   * Quantize lon/lat for stitching marching-square segments.
+   * 1e-5 degree is enough for this WRF grid.
+   */
+  return `${p[0].toFixed(5)}:${p[1].toFixed(5)}`;
+}
 
-  lineFeatures.push({
-    type: "Feature",
-    geometry: {
-      type: "LineString",
-      coordinates: [pts[0], pts[1]]
-    },
-    properties: {
-      level,
-      label: String(level)
+function stitchContourSegments(segments) {
+  /*
+   * Convert many short marching-square segments into longer polylines.
+   * segments: [{p0:[lon,lat], p1:[lon,lat]}]
+   */
+  const endpointMap = new Map();
+
+  for (let idx = 0; idx < segments.length; idx++) {
+    const seg = segments[idx];
+    const k0 = contourPointKey(seg.p0);
+    const k1 = contourPointKey(seg.p1);
+
+    if (!endpointMap.has(k0)) endpointMap.set(k0, []);
+    if (!endpointMap.has(k1)) endpointMap.set(k1, []);
+
+    endpointMap.get(k0).push({ idx, end: 0 });
+    endpointMap.get(k1).push({ idx, end: 1 });
+  }
+
+  const used = new Uint8Array(segments.length);
+  const lines = [];
+
+  function extend(line, forward) {
+    while (true) {
+      const p = forward ? line[line.length - 1] : line[0];
+      const key = contourPointKey(p);
+      const hits = endpointMap.get(key) || [];
+
+      let found = null;
+
+      for (const h of hits) {
+        if (used[h.idx]) continue;
+        found = h;
+        break;
+      }
+
+      if (!found) break;
+
+      used[found.idx] = 1;
+
+      const seg = segments[found.idx];
+      const nextPoint = found.end === 0 ? seg.p1 : seg.p0;
+
+      if (forward) line.push(nextPoint);
+      else line.unshift(nextPoint);
     }
-  });
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    if (used[i]) continue;
+
+    used[i] = 1;
+
+    const seg = segments[i];
+    const line = [seg.p0, seg.p1];
+
+    extend(line, true);
+    extend(line, false);
+
+    if (line.length >= 2) {
+      lines.push(line);
+    }
+  }
+
+  return lines;
+}
+
+function screenLengthOfPolyline(line) {
+  if (!map || !line || line.length < 2) return 0.0;
+
+  let len = 0.0;
+
+  for (let i = 1; i < line.length; i++) {
+    const a = map.project({ lng: line[i - 1][0], lat: line[i - 1][1] });
+    const b = map.project({ lng: line[i][0], lat: line[i][1] });
+
+    len += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+
+  return len;
+}
+
+function labelCandidateFromPolyline(line, level) {
+  if (!map || !line || line.length < 2) return null;
+
+  let total = 0.0;
+  const segLens = [];
+
+  for (let i = 1; i < line.length; i++) {
+    const a = map.project({ lng: line[i - 1][0], lat: line[i - 1][1] });
+    const b = map.project({ lng: line[i][0], lat: line[i][1] });
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+
+    segLens.push(d);
+    total += d;
+  }
 
   /*
-   * Force labels to exist.
-   * Put labels on every 4 hPa line, with repeated labels along long contours.
+   * Too-short contours should not get labels.
    */
-  labelCounter[level] = (labelCounter[level] || 0) + 1;
+  if (total < 170.0) return null;
 
-  if (level % 4 === 0 && (labelCounter[level] === 6 || labelCounter[level] % 44 === 0)) {
-    labelFeatures.push({
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [
-          0.5 * (pts[0][0] + pts[1][0]),
-          0.5 * (pts[0][1] + pts[1][1])
-        ]
-      },
-      properties: {
-        level,
-        label: String(level)
-      }
-    });
+  /*
+   * Put the label near the middle of the contour.
+   */
+  const target = total * 0.52;
+  let acc = 0.0;
+
+  for (let i = 1; i < line.length; i++) {
+    const d = segLens[i - 1];
+
+    if (acc + d >= target) {
+      const f = d > 0.0 ? (target - acc) / d : 0.5;
+
+      const p0 = line[i - 1];
+      const p1 = line[i];
+
+      const lon = p0[0] * (1.0 - f) + p1[0] * f;
+      const lat = p0[1] * (1.0 - f) + p1[1] * f;
+
+      const pt = map.project({ lng: lon, lat });
+
+      return {
+        feature: {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [lon, lat]
+          },
+          properties: {
+            level,
+            label: String(level),
+            p0,
+            p1
+          }
+        },
+        x: pt.x,
+        y: pt.y,
+        screenLength: total
+      };
+    }
+
+    acc += d;
   }
+
+  return null;
+}
+
+function selectPressureLabels(labelCandidates) {
+  /*
+   * Big contours first. If a new label is too close to an existing one,
+   * skip it. This avoids crowded labels.
+   */
+  const selected = [];
+
+  if (!map || !labelCandidates || labelCandidates.length <= 0) return selected;
+
+  const z = map.getZoom ? map.getZoom() : 6.0;
+
+  /*
+   * Minimum label spacing in screen pixels.
+   * Higher zoom can tolerate slightly closer labels.
+   */
+  let minDist = 150.0;
+  if (z >= 7.5) minDist = 120.0;
+  else if (z <= 5.0) minDist = 175.0;
+
+  /*
+   * Keep label count sane.
+   */
+  const rect = map.getContainer().getBoundingClientRect();
+  const maxLabels = Math.max(
+    6,
+    Math.min(22, Math.round((rect.width * rect.height) / 85000))
+  );
+
+  const sorted = labelCandidates.slice().sort((a, b) => {
+    /*
+     * Large polyline first.
+     * Slightly prefer 4 hPa contours only when lengths are similar.
+     */
+    const la = a.screenLength || 0.0;
+    const lb = b.screenLength || 0.0;
+
+    const majorA = Number(a.feature.properties.level) % 4 === 0 ? 1 : 0;
+    const majorB = Number(b.feature.properties.level) % 4 === 0 ? 1 : 0;
+
+    return (lb + majorB * 25.0) - (la + majorA * 25.0);
+  });
+
+  for (const cand of sorted) {
+    let ok = true;
+
+    for (const old of selected) {
+      const d = Math.hypot(cand.x - old.x, cand.y - old.y);
+
+      if (d < minDist) {
+        ok = false;
+        break;
+      }
+    }
+
+    if (!ok) continue;
+
+    selected.push(cand);
+
+    if (selected.length >= maxLabels) break;
+  }
+
+  return selected.map(c => c.feature);
 }
 
 function buildPressureContourGeoJSON(values) {
@@ -2682,55 +2860,10 @@ function buildPressureContourGeoJSON(values) {
   const levels = [];
   for (let lv = 990; lv <= 1030; lv += 2) levels.push(lv);
 
-  /*
-   * Label counter by pressure level.
-   * Labels are placed only on contour segments, not on arbitrary grid points.
-   */
-  const labelCounter = {};
-
-  function pushContourSegment(pts, level) {
-    if (!pts || pts.length !== 2) return;
-
-    lineFeatures.push({
-      type: "Feature",
-      geometry: {
-        type: "LineString",
-        coordinates: [pts[0], pts[1]]
-      },
-      properties: {
-        level,
-        label: String(level)
-      }
-    });
-
-    labelCounter[level] = (labelCounter[level] || 0) + 1;
-
-    /*
-     * Put pressure labels directly on isobar segments.
-     * Use every 2 hPa contour, but not every tiny cell segment.
-     */
-    if (labelCounter[level] === 20 || labelCounter[level] % 180 === 0) {
-      const lon = 0.5 * (pts[0][0] + pts[1][0]);
-      const lat = 0.5 * (pts[0][1] + pts[1][1]);
-
-      labelFeatures.push({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [lon, lat]
-        },
-        properties: {
-          level,
-          label: String(level),
-          p0: pts[0],
-          p1: pts[1]
-        }
-      });
-    }
-  }
+  const segmentsByLevel = {};
 
   for (const level of levels) {
-    labelCounter[level] = 0;
+    segmentsByLevel[level] = [];
 
     for (let j = 0; j < ny - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
@@ -2768,13 +2901,46 @@ function buildPressureContourGeoJSON(values) {
         if (cross(v01, v00)) pts.push(contourInterp(p01, p00, v01, v00, level));
 
         if (pts.length === 2) {
-          pushContourSegment([pts[0], pts[1]], level);
+          segmentsByLevel[level].push({ p0: pts[0], p1: pts[1] });
         } else if (pts.length === 4) {
-          pushContourSegment([pts[0], pts[1]], level);
-          pushContourSegment([pts[2], pts[3]], level);
+          segmentsByLevel[level].push({ p0: pts[0], p1: pts[1] });
+          segmentsByLevel[level].push({ p0: pts[2], p1: pts[3] });
         }
       }
     }
+  }
+
+  const labelCandidates = [];
+
+  for (const level of levels) {
+    const segments = segmentsByLevel[level] || [];
+    const polylines = stitchContourSegments(segments);
+
+    for (const line of polylines) {
+      if (!line || line.length < 2) continue;
+
+      lineFeatures.push({
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates: line
+        },
+        properties: {
+          level,
+          label: String(level)
+        }
+      });
+
+      const cand = labelCandidateFromPolyline(line, level);
+
+      if (cand) {
+        labelCandidates.push(cand);
+      }
+    }
+  }
+
+  for (const f of selectPressureLabels(labelCandidates)) {
+    labelFeatures.push(f);
   }
 
   return {
