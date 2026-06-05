@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "fix_model_switch_and_initial_view_01";
+const APP_DATA_VERSION = "marker_black_keep_timeseries_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -1944,8 +1944,8 @@ function ensureSamplePointLayer() {
       source: "sample-point",
       paint: {
         "circle-radius": 6,
-        "circle-color": "#ffffff",
-        "circle-stroke-color": "#0b1f33",
+        "circle-color": "#000000",
+        "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 2
       }
     });
@@ -3341,8 +3341,13 @@ function bindEvents() {
       if (!nextVar || nextVar === currentVar) return;
 
       currentVar = nextVar;
-      resetViewTransientState();
+
+      /*
+       * Same model, same clicked point:
+       * keep time-series panel and sample marker open.
+       */
       setFrame(currentFrame);
+      map.triggerRepaint();
     });
   }
 
