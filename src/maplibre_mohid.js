@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "pressure_labels_swan_dir_fix_01";
+const APP_DATA_VERSION = "pressure_grid_labels_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -2421,9 +2421,9 @@ function ensurePressureContourLayers() {
         "text-anchor": "center"
       },
       paint: {
-        "text-color": "#f7fbff",
-        "text-halo-color": "rgba(5,15,25,0.98)",
-        "text-halo-width": 1.8
+        "text-color": "#0b2430",
+        "text-halo-color": "rgba(245,250,255,0.92)",
+        "text-halo-width": 2.6
       }
     });
   }
@@ -2505,11 +2505,7 @@ function buildPressureContourGeoJSON(values) {
   const levels = [];
   for (let lv = 990; lv <= 1030; lv += 2) levels.push(lv);
 
-  const labelCounter = {};
-
   for (const level of levels) {
-    labelCounter[level] = 0;
-
     for (let j = 0; j < ny - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
         const c00 = j * nx + i;
@@ -2546,12 +2542,76 @@ function buildPressureContourGeoJSON(values) {
         if (cross(v01, v00)) pts.push(contourInterp(p01, p00, v01, v00, level));
 
         if (pts.length === 2) {
-          addPressureContourSegment(lineFeatures, labelFeatures, [pts[0], pts[1]], level, labelCounter);
+          lineFeatures.push({
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: [pts[0], pts[1]]
+            },
+            properties: {
+              level,
+              label: String(level)
+            }
+          });
         } else if (pts.length === 4) {
-          addPressureContourSegment(lineFeatures, labelFeatures, [pts[0], pts[1]], level, labelCounter);
-          addPressureContourSegment(lineFeatures, labelFeatures, [pts[2], pts[3]], level, labelCounter);
+          lineFeatures.push({
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: [pts[0], pts[1]]
+            },
+            properties: {
+              level,
+              label: String(level)
+            }
+          });
+          lineFeatures.push({
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: [pts[2], pts[3]]
+            },
+            properties: {
+              level,
+              label: String(level)
+            }
+          });
         }
       }
+    }
+  }
+
+  /*
+   * Guaranteed pressure labels.
+   * Instead of relying on very short contour segments, place sparse pressure
+   * labels directly from the gridded SLP field.
+   */
+  const labelStepX = 58;
+  const labelStepY = 46;
+
+  for (let j = Math.floor(labelStepY * 0.5); j < ny; j += labelStepY) {
+    for (let i = Math.floor(labelStepX * 0.5); i < nx; i += labelStepX) {
+      const c = j * nx + i;
+      const v = values[c];
+
+      if (!Number.isFinite(v)) continue;
+
+      const rounded = Math.round(v / 2.0) * 2;
+
+      if (rounded < 990 || rounded > 1030) continue;
+      if (!Number.isFinite(grid.lon[c]) || !Number.isFinite(grid.lat[c])) continue;
+
+      labelFeatures.push({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [grid.lon[c], grid.lat[c]]
+        },
+        properties: {
+          level: rounded,
+          label: String(rounded)
+        }
+      });
     }
   }
 
