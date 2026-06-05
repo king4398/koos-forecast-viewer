@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "wrf_particle_fast_lookup_01";
+const APP_DATA_VERSION = "wrf_particle_color_label_fix_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -675,11 +675,22 @@ function particlesColoredBySpeed() {
     return currentVar === "current_speed" || currentVar === "current_particles";
   }
 
+  /*
+   * WRF:
+   *   Wind              -> white particles over scalar wind map
+   *   Wind (Particles)  -> colored particles using Wind colorbar
+   */
   if (currentModel === "wrf") {
     return currentVar === "wind_particles";
   }
 
   return false;
+}
+
+function particleColorVariableForCurrentView() {
+  if (currentModel === "wrf") return "wind_speed";
+  if (currentModel === "mohid") return "current_speed";
+  return null;
 }
 
 function scalarVisibleForCurrentView() {
@@ -2387,14 +2398,14 @@ function ensurePressureContourLayers() {
       filter: ["==", ["geometry-type"], "Point"],
       layout: {
         "text-field": ["get", "label"],
-        "text-size": 10,
-        "text-allow-overlap": false,
-        "text-ignore-placement": false
+        "text-size": 11,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true
       },
       paint: {
-        "text-color": "#f5f8ff",
-        "text-halo-color": "rgba(10,20,30,0.90)",
-        "text-halo-width": 1.4
+        "text-color": "#f7fbff",
+        "text-halo-color": "rgba(10,20,30,0.95)",
+        "text-halo-width": 1.8
       }
     });
   }
@@ -2435,7 +2446,10 @@ function buildPressureContourGeoJSON(values) {
   const levels = [];
   for (let lv = 990; lv <= 1030; lv += 2) levels.push(lv);
 
+  const labelCounter = {};
+
   for (const level of levels) {
+    labelCounter[level] = 0;
     for (let j = 0; j < ny - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
         const c00 = j * nx + i;
@@ -2485,9 +2499,11 @@ function buildPressureContourGeoJSON(values) {
           });
 
           /*
-           * Add sparse point labels. Line segments are too short for line-placement labels.
+           * Add guaranteed point labels.
+           * LineString contour segments are too short for symbol-placement: line.
            */
-          if ((i + j) % 80 === 0 && level % 4 === 0) {
+          labelCounter[level] += 1;
+          if (level % 4 === 0 && (labelCounter[level] === 8 || labelCounter[level] % 55 === 0)) {
             features.push({
               type: "Feature",
               geometry: {
@@ -2549,6 +2565,20 @@ function updatePressureContours(values) {
   if (!src) return;
 
   src.setData(buildPressureContourGeoJSON(values));
+
+  /*
+   * Keep contour labels above scalar custom layer/basemap labels.
+   */
+  try {
+    if (map.getLayer("pressure-contours-line")) {
+      map.moveLayer("pressure-contours-line");
+    }
+    if (map.getLayer("pressure-contours-label")) {
+      map.moveLayer("pressure-contours-label");
+    }
+  } catch (err) {
+    console.warn("pressure contour layer ordering failed:", err);
+  }
 }
 
 function updateLegend() {
