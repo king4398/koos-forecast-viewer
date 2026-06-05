@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "pressure_isobar_labels_01";
+const APP_DATA_VERSION = "pressure_rotated_color_labels_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -2419,6 +2419,73 @@ function clearPressureDomLabels() {
   }
 }
 
+function lerp01(a, b, t) {
+  return a * (1.0 - t) + b * t;
+}
+
+function pressureLabelRgb(level) {
+  const vmin = 990.0;
+  const vmax = 1030.0;
+
+  let t = (Number(level) - vmin) / Math.max(1.0e-12, vmax - vmin);
+  if (!Number.isFinite(t)) t = 0.5;
+  t = Math.max(0.0, Math.min(1.0, t));
+
+  const stops = [
+    [23, 120, 140],   // 990
+    [64, 173, 171],   // 1000
+    [224, 214, 168],  // 1010
+    [179, 120, 77],   // 1020
+    [163, 51, 31]     // 1030
+  ];
+
+  const x = t * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.max(0, Math.floor(x)));
+  const f = x - i;
+
+  const a = stops[i];
+  const b = stops[i + 1];
+
+  return [
+    Math.round(lerp01(a[0], b[0], f)),
+    Math.round(lerp01(a[1], b[1], f)),
+    Math.round(lerp01(a[2], b[2], f))
+  ];
+}
+
+function pressureLabelBackground(level) {
+  const c = pressureLabelRgb(level);
+  return `rgba(${c[0]}, ${c[1]}, ${c[2]}, 0.92)`;
+}
+
+function pressureLabelTextColor(level) {
+  const c = pressureLabelRgb(level);
+  const lum = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+  return lum > 150 ? "#10222c" : "#f7fbff";
+}
+
+function pressureLabelAngleDeg(feature) {
+  if (!map || !feature || !feature.properties) return 0.0;
+
+  const p0 = feature.properties.p0;
+  const p1 = feature.properties.p1;
+
+  if (!Array.isArray(p0) || !Array.isArray(p1)) return 0.0;
+
+  const a = map.project({ lng: p0[0], lat: p0[1] });
+  const b = map.project({ lng: p1[0], lat: p1[1] });
+
+  let deg = Math.atan2(b.y - a.y, b.x - a.x) * 180.0 / Math.PI;
+
+  /*
+   * Keep text readable: avoid upside-down labels.
+   */
+  if (deg > 90.0) deg -= 180.0;
+  if (deg < -90.0) deg += 180.0;
+
+  return deg;
+}
+
 function renderPressureDomLabels() {
   if (!map || !pressureLabelFeatures || pressureLabelFeatures.length <= 0) {
     if (pressureLabelContainer) pressureLabelContainer.style.display = "none";
@@ -2447,11 +2514,29 @@ function renderPressureDomLabels() {
       continue;
     }
 
+    const level = f.properties && Number.isFinite(Number(f.properties.level))
+      ? Number(f.properties.level)
+      : Number(label);
+
+    const angle = pressureLabelAngleDeg(f);
+
     const el = document.createElement("div");
     el.className = "pressure-label-dom";
     el.textContent = label;
     el.style.left = `${pt.x}px`;
     el.style.top = `${pt.y}px`;
+
+    /*
+     * Same color family as the pressure colorbar.
+     * Use !important because previous CSS rules may also use !important.
+     */
+    el.style.setProperty("background", pressureLabelBackground(level), "important");
+    el.style.setProperty("color", pressureLabelTextColor(level), "important");
+    el.style.setProperty(
+      "transform",
+      `translate(-50%, -50%) rotate(${angle.toFixed(2)}deg)`,
+      "important"
+    );
 
     container.appendChild(el);
   }
@@ -2562,7 +2647,7 @@ function addPressureContourSegment(lineFeatures, labelFeatures, pts, level, labe
    */
   labelCounter[level] = (labelCounter[level] || 0) + 1;
 
-  if (level % 4 === 0 && (labelCounter[level] === 2 || labelCounter[level] % 22 === 0)) {
+  if (level % 4 === 0 && (labelCounter[level] === 6 || labelCounter[level] % 44 === 0)) {
     labelFeatures.push({
       type: "Feature",
       geometry: {
@@ -2624,7 +2709,7 @@ function buildPressureContourGeoJSON(values) {
      * Put pressure labels directly on isobar segments.
      * Use every 2 hPa contour, but not every tiny cell segment.
      */
-    if (labelCounter[level] === 10 || labelCounter[level] % 90 === 0) {
+    if (labelCounter[level] === 20 || labelCounter[level] % 180 === 0) {
       const lon = 0.5 * (pts[0][0] + pts[1][0]);
       const lat = 0.5 * (pts[0][1] + pts[1][1]);
 
@@ -2636,7 +2721,9 @@ function buildPressureContourGeoJSON(values) {
         },
         properties: {
           level,
-          label: String(level)
+          label: String(level),
+          p0: pts[0],
+          p1: pts[1]
         }
       });
     }

@@ -493,3 +493,16 @@ select option {
   line-height: 14px !important;
   box-shadow: 0 0 0 1px rgba(70, 105, 135, 0.28), 0 1px 4px rgba(0, 0, 0, 0.22) !important;
 }
+
+/* Isobar labels: compact, rotated, color-matched to pressure colorbar */
+.pressure-label-dom {
+  padding: 1px 6px !important;
+  border-radius: 8px !important;
+  font: 800 10px ui-monospace, Menlo, Consolas, monospace !important;
+  line-height: 14px !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.32),
+    0 1px 4px rgba(0, 0, 0, 0.32) !important;
+  white-space: nowrap !important;
+  transform-origin: center center !important;
+}
