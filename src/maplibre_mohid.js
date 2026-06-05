@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "wrf_wind_particle_tune_01";
+const APP_DATA_VERSION = "wrf_particles_slp_colormap_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -32,7 +32,7 @@ const MODEL_DEFS = {
       ["wind_speed", "Wind"],
       ["wind_particles", "Wind (Particles)"],
       ["t2", "2m Temperature"],
-      ["slp", "SLP"]
+      ["slp", "Sea Level Pressure"]
     ]
   }
 };
@@ -379,6 +379,21 @@ vec3 blueWhiteRed(float t) {
   return mix3(white, red, (t - 0.5) / 0.5);
 }
 
+vec3 slpPressure(float t) {
+  t = clamp(t, 0.0, 1.0);
+
+  vec3 c0 = vec3(0.09, 0.47, 0.55);  // 990 hPa: teal
+  vec3 c1 = vec3(0.25, 0.68, 0.67);  // 1000 hPa
+  vec3 c2 = vec3(0.88, 0.84, 0.66);  // 1010 hPa: light beige
+  vec3 c3 = vec3(0.70, 0.47, 0.30);  // 1020 hPa: brown
+  vec3 c4 = vec3(0.64, 0.20, 0.12);  // 1030 hPa: reddish brown
+
+  if (t < 0.25) return mix3(c0, c1, t / 0.25);
+  if (t < 0.50) return mix3(c1, c2, (t - 0.25) / 0.25);
+  if (t < 0.75) return mix3(c2, c3, (t - 0.50) / 0.25);
+  return mix3(c3, c4, (t - 0.75) / 0.25);
+}
+
 void main() {
   if (v_value != v_value) discard;
 
@@ -388,6 +403,7 @@ void main() {
   vec3 c;
   if (u_cmap == 1) c = blueWhiteRed(t);
   else if (u_cmap == 2) c = ylgnbu(t);
+  else if (u_cmap == 4) c = slpPressure(t);
   else c = smoothJet(t);
 
   gl_FragColor = vec4(c, u_opacity);
@@ -516,6 +532,7 @@ function cmapCode(name) {
   if (c === "bwr" || c === "rdbu" || c === "bluewhitered") return 1;
   if (c === "ylgnbu") return 2;
   if (c === "viridis") return 3;
+  if (c === "slp" || c === "pressure" || c === "sea_level_pressure") return 4;
   if (c === "turbo") return 0;
 
   return 0;
@@ -658,10 +675,14 @@ function particlesColoredBySpeed() {
     return currentVar === "current_speed" || currentVar === "current_particles";
   }
 
-  /*
-   * WRF and SWAN particles are direction animations.
-   * Keep particles white; scalar color map already represents magnitude.
-   */
+  if (currentModel === "wrf") {
+    /*
+     * WRF Wind: scalar wind color + white particles.
+     * WRF Wind (Particles): colored particles only.
+     */
+    return currentVar === "wind_particles";
+  }
+
   return false;
 }
 
@@ -1609,7 +1630,7 @@ function timeseriesVariablesForModel() {
     return [
       ["wind_speed", "Wind"],
       ["t2", "2m Temp"],
-      ["slp", "SLP"]
+      ["slp", "Sea Level Pressure"]
     ].filter(([v]) => meta.variables[v]);
   }
 
@@ -2174,39 +2195,59 @@ function bindPointTimeseriesEvents() {
 }
 
 
+function legendGradientCss(cmap) {
+  const c = String(cmap || "").toLowerCase();
+
+  if (c === "slp" || c === "pressure" || c === "sea_level_pressure") {
+    return "linear-gradient(to right, " +
+      "rgb(23,120,140) 0%, " +
+      "rgb(64,173,171) 25%, " +
+      "rgb(224,214,168) 50%, " +
+      "rgb(179,120,77) 75%, " +
+      "rgb(163,51,31) 100%)";
+  }
+
+  if (c === "bwr" || c === "rdbu" || c === "bluewhitered") {
+    return "linear-gradient(to right, rgb(13,46,242), rgb(250,250,245), rgb(209,31,20))";
+  }
+
+  if (c === "ylgnbu") {
+    return "linear-gradient(to right, rgb(255,255,204), rgb(199,233,180), rgb(127,205,187), rgb(65,182,196), rgb(44,127,184), rgb(37,52,148))";
+  }
+
+  return "linear-gradient(to right, rgb(13,46,242), rgb(13,158,255), rgb(26,199,107), rgb(235,219,56), rgb(242,140,26), rgb(209,31,20))";
+}
+
 function updateLegend() {
-  const legendVar = scalarVariableForCurrentView();
-  const v = meta.variables[legendVar];
+  if (!els.legendBox || !meta || !meta.variables) return;
 
-  if (!v) return;
+  if (!scalarVisibleForCurrentView()) {
+    els.legendBox.style.display = "none";
+    return;
+  }
 
-  const jetGrad =
-    "linear-gradient(to right,#0d2ef2,#0d9eff,#19c76b,#ebe038,#f28c1a,#d11f14)";
-  const elevGrad =
-    "linear-gradient(to right,#0d2ef2,#fafaf5,#d11f14)";
-  const ylgnbuGrad =
-    "linear-gradient(to right,#ffffcc,#c7e9b4,#7fcdbb,#41b6c4,#2c7fb8,#253494)";
+  const varName = scalarVariableForCurrentView();
+  const vm = meta.variables[varName];
 
-  let grad = jetGrad;
+  if (!vm) {
+    els.legendBox.style.display = "none";
+    return;
+  }
 
-  if (v.cmap === "ylgnbu") grad = ylgnbuGrad;
-  if (v.cmap === "bwr") grad = elevGrad;
+  els.legendBox.style.display = "block";
 
-  const mid = (v.vmin + v.vmax) / 2;
-  const digits = legendVar === "ssh" ? 2 : 1;
-
-  const title =
-    currentVar === "current_particles"
-      ? "Current Speed Particles"
-      : v.label;
+  const vmin = Number(vm.vmin);
+  const vmax = Number(vm.vmax);
+  const vmid = 0.5 * (vmin + vmax);
+  const unit = vm.unit ? ` [${vm.unit}]` : "";
 
   els.legendBox.innerHTML =
-    `<div class="legend-title">${title} [${v.unit}]</div>` +
-    `<div style="height:14px;width:100%;margin:7px 0 5px;border-radius:4px;background:${grad};"></div>` +
+    `<div class="legend-title">${vm.label}${unit}</div>` +
+    `<div style="height:16px;border-radius:5px;margin:8px 0 5px;background:${legendGradientCss(vm.cmap)};"></div>` +
     `<div class="legend-ticks">` +
-    `<span>${fmtLegendNumber(v.vmin, digits)}</span>` +
-    `<span>${fmtLegendNumber(mid, digits)}</span>` +
-    `<span>${fmtLegendNumber(v.vmax, digits)}</span>` +
+    `<span>${fmtLegendNumber(vmin, 1)}</span>` +
+    `<span>${fmtLegendNumber(vmid, 1)}</span>` +
+    `<span>${fmtLegendNumber(vmax, 1)}</span>` +
     `</div>`;
 }
 

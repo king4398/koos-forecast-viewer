@@ -218,7 +218,7 @@ def main():
                 "label": "Wind",
                 "unit": "m/s",
                 "vmin": 0.0,
-                "vmax": 30.0,
+                "vmax": 20.0,
                 "cmap": "turbo"
             },
             "t2": {
@@ -229,11 +229,11 @@ def main():
                 "cmap": "turbo"
             },
             "slp": {
-                "label": "SLP",
+                "label": "Sea Level Pressure",
                 "unit": "hPa",
                 "vmin": 990.0,
                 "vmax": 1030.0,
-                "cmap": "bwr"
+                "cmap": "slp"
             }
         },
         "timeseries": {
