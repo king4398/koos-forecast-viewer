@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "pressure_big_isobar_labels_03";
+const APP_DATA_VERSION = "preserve_view_switch_cleanup_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -166,8 +166,10 @@ function isSwanModel() {
 }
 
 
-function setStatus(msg) {
-  if (els.statusLine) els.statusLine.textContent = msg;
+function setStatus(_) {
+  /*
+   * Status box is hidden in the compact UI.
+   */
 }
 
 function frameCount() {
@@ -1951,6 +1953,44 @@ function setSamplePointMarker(lon, lat) {
   });
 }
 
+function clearSamplePointMarker() {
+  if (!map) return;
+
+  const src = map.getSource("sample-point");
+  if (!src) return;
+
+  src.setData({
+    type: "FeatureCollection",
+    features: []
+  });
+}
+
+function closePointTimeseriesPanel() {
+  sampleRequestId += 1;
+
+  if (els.tsPanel) {
+    els.tsPanel.classList.add("hidden");
+  }
+
+  if (els.tsTitle) {
+    els.tsTitle.textContent = "";
+  }
+
+  if (els.tsInfo) {
+    els.tsInfo.textContent = "";
+  }
+
+  clearSamplePointMarker();
+}
+
+function resetViewTransientState() {
+  /*
+   * Clear model-specific transient UI when switching model/variable.
+   */
+  closePointTimeseriesPanel();
+  clearPressureContours();
+}
+
 async function loadPointTimeseriesVariable(name, cell) {
   const ts = meta && meta.timeseries && meta.timeseries.variables
     ? meta.timeseries.variables[name]
@@ -2228,12 +2268,15 @@ async function showPointTimeseries(lon, lat) {
   const cell = findNearestSampleCell(lon, lat);
 
   if (cell < 0) {
+    clearSamplePointMarker();
+
     if (els.tsPanel) els.tsPanel.classList.remove("hidden");
     if (els.tsTitle) els.tsTitle.textContent = "No data";
     if (els.tsInfo) {
       els.tsInfo.textContent =
         `lon/lat: ${lon.toFixed(5)}, ${lat.toFixed(5)}`;
     }
+
     clearPointTimeseriesCanvas("No data");
     return;
   }
@@ -2348,15 +2391,7 @@ function bindPointTimeseriesEvents() {
 
   if (els.tsClose) {
     els.tsClose.addEventListener("click", () => {
-      if (els.tsPanel) els.tsPanel.classList.add("hidden");
-
-      const src = map.getSource("sample-point");
-      if (src) {
-        src.setData({
-          type: "FeatureCollection",
-          features: []
-        });
-      }
+      closePointTimeseriesPanel();
     });
   }
 
@@ -3161,13 +3196,15 @@ function initMap() {
     attributionControl: true
   });
 
-  map.fitBounds(
+  if (!preserveView) {
+    map.fitBounds(
     [
       [meta.grid.lon_min, meta.grid.lat_min],
       [meta.grid.lon_max, meta.grid.lat_max]
     ],
     { padding: 30, duration: 0 }
   );
+  }
 }
 
 function bindEvents() {
@@ -3175,15 +3212,28 @@ function bindEvents() {
     els.modelSelect.addEventListener("change", () => {
       const model = els.modelSelect.value || "mohid";
 
+      resetViewTransientState();
+
+      const center = map ? map.getCenter() : null;
+      const zoom = map ? map.getZoom() : null;
+
       const url = new URL(window.location.href);
       url.searchParams.set("model", model);
       url.searchParams.set("cache", Date.now().toString());
+
+      if (center && Number.isFinite(center.lng) && Number.isFinite(center.lat) && Number.isFinite(zoom)) {
+        url.searchParams.set("lon", center.lng.toFixed(6));
+        url.searchParams.set("lat", center.lat.toFixed(6));
+        url.searchParams.set("z", zoom.toFixed(3));
+      }
+
       window.location.href = url.toString();
     });
   }
 
   els.varSelect.addEventListener("change", () => {
     currentVar = els.varSelect.value;
+    resetViewTransientState();
     setFrame(currentFrame);
   });
 
