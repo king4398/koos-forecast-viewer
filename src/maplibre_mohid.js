@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_DATA_VERSION = "wrf_click_contour_label_fix_01";
+const APP_DATA_VERSION = "wrf_particle_fast_lookup_01";
 
 const MODEL_DEFS = {
   mohid: {
@@ -770,10 +770,11 @@ function vectorAt(lon, lat) {
   if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return null;
 
   /*
-   * WRF is curvilinear in lon/lat. Use nearest real grid point.
+   * WRF particles need a fast lookup.
+   * Do NOT use bruteForceNearestSampleCell here; it is only for click sampling.
    */
   if (currentModel === "wrf") {
-    const cell = bruteForceNearestSampleCell(lon, lat);
+    const cell = fastStructuredCellAt(lon, lat);
 
     if (cell < 0 || cell >= grid.n) return null;
     if (grid.mask && grid.mask[cell] <= 0.0) return null;
@@ -1688,6 +1689,64 @@ function bruteForceNearestSampleCell(lon, lat) {
     if (d2 < bestD2) {
       bestD2 = d2;
       best = c;
+    }
+  }
+
+  return best;
+}
+
+function fastStructuredCellAt(lon, lat) {
+  /*
+   * Fast lookup for animation.
+   * WRF click sampling uses brute-force, but particles cannot.
+   */
+  if (!grid || !meta || !meta.grid) return -1;
+
+  const nx = grid.nx;
+  const ny = grid.ny;
+
+  const lonMin = meta.grid.lon_min;
+  const lonMax = meta.grid.lon_max;
+  const latMin = meta.grid.lat_min;
+  const latMax = meta.grid.lat_max;
+
+  if (lon < lonMin || lon > lonMax || lat < latMin || lat > latMax) return -1;
+
+  let ix = Math.round((lon - lonMin) / Math.max(1.0e-12, lonMax - lonMin) * (nx - 1));
+  let iy = Math.round((lat - latMin) / Math.max(1.0e-12, latMax - latMin) * (ny - 1));
+
+  ix = Math.max(0, Math.min(nx - 1, ix));
+  iy = Math.max(0, Math.min(ny - 1, iy));
+
+  let best = -1;
+  let bestD2 = 1.0e30;
+  const coslat = Math.max(0.2, Math.cos(lat * Math.PI / 180.0));
+
+  /*
+   * Small local search only. This fixes most curvilinear offset
+   * without scanning the whole 360x360 grid.
+   */
+  const rmax = currentModel === "wrf" ? 2 : 1;
+
+  for (let dy = -rmax; dy <= rmax; dy++) {
+    const yy = iy + dy;
+    if (yy < 0 || yy >= ny) continue;
+
+    for (let dx = -rmax; dx <= rmax; dx++) {
+      const xx = ix + dx;
+      if (xx < 0 || xx >= nx) continue;
+
+      const c = yy * nx + xx;
+      if (!isValidSampleCell(c)) continue;
+
+      const dlon = (grid.lon[c] - lon) * coslat;
+      const dlat = grid.lat[c] - lat;
+      const d2 = dlon * dlon + dlat * dlat;
+
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        best = c;
+      }
     }
   }
 
